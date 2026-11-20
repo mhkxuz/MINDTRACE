@@ -91,7 +91,9 @@ multimodal-mental-health/
 │   │   ├── facial_model.py            # FacialEmotionCNN architecture & service
 │   │   ├── fusion_model.py            # FusionModelWeighted & baseline architectures
 │   │   ├── text_model.py              # MentalBERT classifier & embedding extractor
-│   │   └── train_fusion.py            # Reproducible fusion training pipeline
+│   │   ├── train_facial_model.py      # Reproducible FER2013 CNN training pipeline
+│   │   ├── train_fusion.py            # Reproducible fusion training pipeline
+│   │   └── train_text_model.py        # Reproducible MentalBERT 7-class text training pipeline
 │   └── services/
 │       └── inference.py               # Unified MindTracePlatform orchestration service
 ├── tests/                             # Comprehensive automated test suite

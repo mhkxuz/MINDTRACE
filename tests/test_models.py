@@ -89,12 +89,18 @@ def test_checkpoint_detection_and_status():
     """Verify that checkpoint detection accurately reports disk status."""
     text_svc = MentalBERTService()
     assert text_svc.checkpoint_path == "models/text/text_model_final.pt"
-    # Current disk status check
-    assert text_svc.is_classifier_loaded is False
+    if os.path.exists(text_svc.checkpoint_path):
+        text_svc.load_classifier()
+        assert text_svc.is_classifier_loaded is True
+    else:
+        assert text_svc.is_classifier_loaded is False
 
     fac_svc = FacialEmotionService()
     assert fac_svc.checkpoint_path == "models/facial/fer_model.pt"
-    assert fac_svc.is_loaded is False
+    if os.path.exists(fac_svc.checkpoint_path):
+        assert fac_svc.is_loaded is True
+    else:
+        assert fac_svc.is_loaded is False
 
     fus_svc = FusionService()
     assert fus_svc.checkpoint_path == "models/fusion/fusion_model.pt"
