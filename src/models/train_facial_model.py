@@ -32,7 +32,7 @@ from typing import Dict, Any, Tuple, List, Optional
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from PIL import Image
 import torchvision.transforms as transforms
 from sklearn.utils.class_weight import compute_class_weight
@@ -58,6 +58,9 @@ AUTUMNQIU_TO_MINDTRACE = {
 
 DEFAULT_ARROW_TRAIN = os.path.expanduser(
     "~/.cache/huggingface/datasets/AutumnQiu___fer2013/default/0.0.0/9c0267afc93fa4d4bfc05d7ff1108a04f72e8392/fer2013-train.arrow"
+)
+DEFAULT_ARROW_VALID = os.path.expanduser(
+    "~/.cache/huggingface/datasets/AutumnQiu___fer2013/default/0.0.0/9c0267afc93fa4d4bfc05d7ff1108a04f72e8392/fer2013-valid.arrow"
 )
 DEFAULT_ARROW_TEST = os.path.expanduser(
     "~/.cache/huggingface/datasets/AutumnQiu___fer2013/default/0.0.0/9c0267afc93fa4d4bfc05d7ff1108a04f72e8392/fer2013-test.arrow"
@@ -226,7 +229,9 @@ def evaluate_fer_model(
 def main():
     parser = argparse.ArgumentParser(description="Train FER2013 7-class Facial Emotion CNN")
     parser.add_argument("--train-arrow", type=str, default=DEFAULT_ARROW_TRAIN)
+    parser.add_argument("--valid-arrow", type=str, default=DEFAULT_ARROW_VALID)
     parser.add_argument("--test-arrow", type=str, default=DEFAULT_ARROW_TEST)
+    parser.add_argument("--eval-only", action="store_true", help="Only evaluate existing checkpoint")
     parser.add_argument("--epochs", type=int, default=10, help="Epochs (default: 10)")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size (default: 64)")
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate (default: 0.001)")
@@ -242,22 +247,48 @@ def main():
 
     # 1. Datasets and Loaders
     print("Loading FER2013 datasets...")
+    test_transforms = get_test_transforms()
+    
+    # Construct combined test dataset (7,178 images: PublicTest + PrivateTest)
+    test_datasets = []
+    if os.path.exists(args.valid_arrow):
+        valid_ds = ArrowFERDataset(args.valid_arrow, transform=test_transforms, max_samples=args.max_samples)
+        test_datasets.append(valid_ds)
+    if os.path.exists(args.test_arrow):
+        raw_test_ds = ArrowFERDataset(args.test_arrow, transform=test_transforms, max_samples=args.max_samples)
+        test_datasets.append(raw_test_ds)
+
+    if len(test_datasets) > 1:
+        test_ds = ConcatDataset(test_datasets)
+    elif len(test_datasets) == 1:
+        test_ds = test_datasets[0]
+    else:
+        raise FileNotFoundError("Neither valid nor test arrow file found!")
+
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=2)
+    print(f"Reconstructed Test images: {len(test_ds)} (expected: 7,178)")
+
+    # Model definition
+    model = FacialEmotionCNN(num_classes=len(EMOTION_LABELS)).to(device)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"FacialEmotionCNN initialized with {total_params:,} parameters (expected: 1,274,951)")
+    assert total_params == 1274951, f"Parameter count mismatch: {total_params} != 1274951"
+
+    if args.eval_only:
+        print(f"\nEvaluating existing checkpoint from: {args.output_path}")
+        if not os.path.exists(args.output_path):
+            raise FileNotFoundError(f"Checkpoint not found at {args.output_path}")
+        model.load_state_dict(torch.load(args.output_path, map_location=device))
+        evaluate_fer_model(model=model, test_loader=test_loader, device=device, emotion_labels=EMOTION_LABELS)
+        return
+
     train_ds = ArrowFERDataset(
         args.train_arrow,
         transform=get_train_transforms(),
         max_samples=args.max_samples,
     )
-    test_ds = ArrowFERDataset(
-        args.test_arrow,
-        transform=get_test_transforms(),
-        max_samples=args.max_samples,
-    )
-
-    print(f"Train images: {len(train_ds)}")
-    print(f"Test images : {len(test_ds)}")
-
+    print(f"Train images: {len(train_ds)} (expected: 28,709)")
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
     # 2. Compute balanced class weights (exact Cell 7)
     train_labels = train_ds.mapped_labels
@@ -273,16 +304,9 @@ def main():
         print(f"  {idx} ({label_name:10s}): {w:.4f}")
 
     criterion = nn.CrossEntropyLoss(weight=weights_tensor)
-
-    # 3. Model & Optimizer
-    model = FacialEmotionCNN(num_classes=len(EMOTION_LABELS)).to(device)
-    total_params = sum(p.numel() for p in model.parameters())
-    print(f"FacialEmotionCNN initialized with {total_params:,} parameters (expected: 1,274,951)")
-    assert total_params == 1274951, f"Parameter count mismatch: {total_params} != 1274951"
-
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    # 4. Train
+    # 3. Train
     checkpoint_dir = os.path.dirname(args.output_path) or "models/facial"
     train_fer_model(
         model=model,
@@ -294,12 +318,12 @@ def main():
         checkpoint_dir=checkpoint_dir,
     )
 
-    # 5. Save model
+    # 4. Save model
     os.makedirs(checkpoint_dir, exist_ok=True)
     torch.save(model.state_dict(), args.output_path)
     print(f"\nFinal FER model state_dict saved to: {args.output_path}")
 
-    # 6. Evaluate
+    # 5. Evaluate
     _ = evaluate_fer_model(
         model=model,
         test_loader=test_loader,

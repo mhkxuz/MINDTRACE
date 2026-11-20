@@ -118,6 +118,33 @@ Evaluation performed on the full hold-out test set (3,589 images):
 | `neutral` | 0.55 | 0.55 | **0.55** | 626 | 0.55 |
 | `sad` | 0.41 | 0.42 | **0.41** | 594 | 0.41 |
 | `surprise` | 0.72 | 0.69 | **0.70** | 416 | 0.74 |
+
+---
+
+### 4.3 Reconstructed Original 7,178-Image Test Evaluation
+
+As identified in the research audit, the original `notebooks/facial_emotion_label.ipynb` evaluated against Kaggle's merged `test` folder of **7,178 images** (combining PublicTest: 3,589 images and PrivateTest: 3,589 images). In `AutumnQiu/fer2013`, these are stored as `valid` (3,589) and `test` (3,589).
+
+Evaluating `models/facial/fer_model.pt` across the reconstructed combined test partition (7,178 images) yields:
+
+| Metric | Retrained Model (Current) | Historical Notebook Benchmark | Variance |
+| :--- | :---: | :---: | :---: |
+| **Test Accuracy** | **55.42%** | **58.79%** | $-3.37\%$ |
+| **Macro F1** | **52.27%** | **56.47%** | $-4.20\%$ |
+| **Weighted F1** | **55.51%** | **59.00%** | $-3.49\%$ |
+
+#### Exact Per-Class Breakdown on 7,178 Images:
+| Emotion Class | Precision | Recall | F1-Score | Support (Actual) | Original Notebook Support |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `angry` | 0.43 | 0.51 | **0.46** | 958 | 958 |
+| `disgust` | 0.29 | 0.68 | **0.41** | 111 | 111 |
+| `fear` | 0.41 | 0.31 | **0.35** | 1,024 | 1,024 |
+| `happy` | 0.79 | 0.75 | **0.77** | 1,774 | 1,774 |
+| `neutral` | 0.52 | 0.52 | **0.52** | 1,233 | 1,233 |
+| `sad` | 0.43 | 0.43 | **0.43** | 1,247 | 1,247 |
+| `surprise` | 0.72 | 0.71 | **0.71** | 831 | 831 |
+| *Macro Average* | 0.51 | 0.56 | **0.52** | 7,178 | 7,178 |
+| *Weighted Average* | 0.56 | 0.55 | **0.56** | 7,178 | 7,178 |
 | **Accuracy** | | | **0.5603** | 3,589 | 0.5879 |
 | **Macro Avg** | 0.52 | 0.57 | **0.5276** | 3,589 | 0.5647 |
 | **Weighted Avg**| 0.57 | 0.56 | **0.5595** | 3,589 | 0.5900 |
