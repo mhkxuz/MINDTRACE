@@ -60,12 +60,21 @@ with col_m1:
 with col_m2:
     render_metric_card("Input Resolution", "48 x 48 px", "3 Channels (RGB)")
 with col_m3:
-    render_metric_card("Test Accuracy", "58.79%", "Macro F1: 56.47% (FER2013)")
+    render_metric_card("Historical Accuracy", "58.79%", "FER2013 Test Set (Notebook 3)")
 with col_m4:
-    ckpt_text = "Verified on Disk" if status["checkpoint_exists"] else "Checkpoint Missing"
-    render_metric_card("Model Checkpoint", ckpt_text, status["checkpoint_path"])
+    ckpt_text = "Operational" if status["checkpoint_exists"] else "Weights Missing"
+    render_metric_card("Model Status", ckpt_text, status["checkpoint_path"])
 
 st.markdown("---")
+
+if not status["checkpoint_exists"]:
+    st.info(
+        "ℹ️ **Status: Model Weights Missing from Disk (`models/facial/fer_model.pt`)**  \n"
+        "The custom 3-block PyTorch CNN architecture and image preprocessing pipeline are implemented and verified. "
+        "However, the trained weights file has not been placed on disk. "
+        "Historical benchmark results (58.79% accuracy) reflect the original 10-epoch training run in Notebook 3. "
+        "Live emotion classification requires placing `fer_model.pt` into `models/facial/`."
+    )
 
 tab_upload, tab_cam, tab_metrics = st.tabs([
     "📁 Image Upload Analysis",

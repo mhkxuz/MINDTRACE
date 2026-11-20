@@ -5,24 +5,18 @@ Unit tests for model architectures and services.
 import os
 import torch
 import numpy as np
-import pytest
 from src.models.facial_model import (
     FacialEmotionCNN,
     FacialEmotionService,
-    EMOTION_LABELS,
-    FER_BENCHMARK_METRICS,
 )
 from src.models.text_model import (
     MentalBERTService,
-    TEXT_CLASSES,
-    TEXT_BENCHMARK_METRICS,
 )
 from src.models.fusion_model import (
     TextOnlyModel,
     BehavioralOnlyModel,
     FusionModelWeighted,
     FusionService,
-    DISTRESS_CLASSES,
 )
 
 
@@ -89,3 +83,37 @@ def test_missing_checkpoints_graceful_handling():
     res_fus = fusion_svc.predict(np.zeros((768,), dtype=np.float32), np.zeros((8,), dtype=np.float32))
     assert res_fus["success"] is False
     assert "not found" in res_fus["error"]
+
+
+def test_checkpoint_detection_and_status():
+    """Verify that checkpoint detection accurately reports disk status."""
+    text_svc = MentalBERTService()
+    assert text_svc.checkpoint_path == "models/text/text_model_final.pt"
+    # Current disk status check
+    assert text_svc.is_classifier_loaded is False
+
+    fac_svc = FacialEmotionService()
+    assert fac_svc.checkpoint_path == "models/facial/fer_model.pt"
+    assert fac_svc.is_loaded is False
+
+    fus_svc = FusionService()
+    assert fus_svc.checkpoint_path == "models/fusion/fusion_model.pt"
+    assert os.path.exists(fus_svc.checkpoint_path) is True
+    assert fus_svc.is_model_loaded is True
+    assert fus_svc.is_scaler_loaded is True
+
+
+def test_fusion_feature_ordering_and_scaler():
+    """Verify exact 8 feature ordering and scaler transformation."""
+    fus_svc = FusionService()
+    success = fus_svc.load_scaler()
+    assert success is True
+    assert fus_svc.scaler is not None
+    assert fus_svc.scaler.n_features_in_ == 8
+
+    # Test scaling of zeros and positive vector
+    raw_vec = np.array([5.0, 0.6, 12.0, -0.5, 0.0, 1.0, 3.5, 1.0], dtype=np.float32)
+    scaled = fus_svc.scaler.transform(raw_vec.reshape(1, -1))[0]
+    assert scaled.shape == (8,)
+    assert not np.isnan(scaled).any()
+    assert not np.isinf(scaled).any()

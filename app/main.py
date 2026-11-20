@@ -55,22 +55,22 @@ with st.sidebar:
     with col_s1:
         st.caption("Text (MentalBERT)")
         txt_status = "ready" if status["text_model"]["checkpoint_exists"] else "missing"
-        txt_label = "Verified" if status["text_model"]["checkpoint_exists"] else "Missing"
+        txt_label = "Operational" if status["text_model"]["checkpoint_exists"] else "No Weights"
         st.markdown(render_status_badge(txt_status, txt_label), unsafe_allow_html=True)
     with col_s2:
         st.caption("Facial (FER CNN)")
         fac_status = "ready" if status["facial_model"]["checkpoint_exists"] else "missing"
-        fac_label = "Verified" if status["facial_model"]["checkpoint_exists"] else "Missing"
+        fac_label = "Operational" if status["facial_model"]["checkpoint_exists"] else "No Weights"
         st.markdown(render_status_badge(fac_status, fac_label), unsafe_allow_html=True)
 
     col_s3, col_s4 = st.columns(2)
     with col_s3:
         st.caption("Behavioral")
-        st.markdown(render_status_badge("ready", "Active"), unsafe_allow_html=True)
+        st.markdown(render_status_badge("ready", "Operational"), unsafe_allow_html=True)
     with col_s4:
         st.caption("Fusion (C)")
         fus_status = "ready" if status["fusion_model"]["checkpoint_exists"] else "missing"
-        fus_label = "Verified" if status["fusion_model"]["checkpoint_exists"] else "Missing"
+        fus_label = "Operational" if status["fusion_model"]["checkpoint_exists"] else "No Weights"
         st.markdown(render_status_badge(fus_status, fus_label), unsafe_allow_html=True)
 
     st.divider()
@@ -173,8 +173,10 @@ audit_data = [
         "Architecture": "mental-bert-base-uncased (7 classes)",
         "Training Dataset": "Kaggle Sentiment Analysis (52.6K)",
         "Notebook": "text_model.ipynb",
-        "Implementation Status": render_status_badge("implemented", "Implemented"),
-        "Checkpoint on Disk": render_status_badge("ready" if status["text_model"]["checkpoint_exists"] else "missing", "Found" if status["text_model"]["checkpoint_exists"] else "Missing"),
+        "Implementation": "Implemented",
+        "Trained": "Yes (Notebook)",
+        "Operational": "Operational" if status["text_model"]["checkpoint_exists"] else "Unavailable (No Weights)",
+        "Checkpoint on Disk": "Found" if status["text_model"]["checkpoint_exists"] else "Missing",
         "Operational Notes": "Fine-tuned 3 epochs; 84.26% test acc.",
     },
     {
@@ -182,8 +184,10 @@ audit_data = [
         "Architecture": "3-Block CNN (48x48 -> 7 classes)",
         "Training Dataset": "FER2013 (28.7K train / 7.1K test)",
         "Notebook": "facial_emotion_label.ipynb",
-        "Implementation Status": render_status_badge("implemented", "Implemented"),
-        "Checkpoint on Disk": render_status_badge("ready" if status["facial_model"]["checkpoint_exists"] else "missing", "Found" if status["facial_model"]["checkpoint_exists"] else "Missing"),
+        "Implementation": "Implemented",
+        "Trained": "Yes (Notebook)",
+        "Operational": "Operational" if status["facial_model"]["checkpoint_exists"] else "Unavailable (No Weights)",
+        "Checkpoint on Disk": "Found" if status["facial_model"]["checkpoint_exists"] else "Missing",
         "Operational Notes": "Trained 10 epochs; 58.79% test acc.",
     },
     {
@@ -191,8 +195,10 @@ audit_data = [
         "Architecture": "Rule-based & Linear Regression",
         "Training Dataset": "ESConv dialogue records",
         "Notebook": "data_preparation+behavioral_features.ipynb",
-        "Implementation Status": render_status_badge("implemented", "Implemented"),
-        "Checkpoint on Disk": render_status_badge("ready", "Functional"),
+        "Implementation": "Implemented",
+        "Trained": "N/A (Rule Engine)",
+        "Operational": "Operational",
+        "Checkpoint on Disk": "Functional (Scaler Loaded)",
         "Operational Notes": "Computes 13 metrics + 8 standardized fusion features.",
     },
     {
@@ -200,17 +206,21 @@ audit_data = [
         "Architecture": "FusionModelWeighted (776 dims -> 2)",
         "Training Dataset": "ESConv (908 conversations)",
         "Notebook": "fusion_model.ipynb",
-        "Implementation Status": render_status_badge("experimental", "Experimental"),
-        "Checkpoint on Disk": render_status_badge("ready" if status["fusion_model"]["checkpoint_exists"] else "missing", "Found" if status["fusion_model"]["checkpoint_exists"] else "Missing"),
-        "Operational Notes": "5-seed holdout & 5-fold CV evaluated; weights ephemeral.",
+        "Implementation": "Implemented",
+        "Trained": "Yes (Trained & Saved)",
+        "Operational": "Operational" if status["fusion_model"]["checkpoint_exists"] else "Unavailable",
+        "Checkpoint on Disk": "Found" if status["fusion_model"]["checkpoint_exists"] else "Missing",
+        "Operational Notes": "5-seed holdout & 5-fold CV evaluated; trained checkpoint verified.",
     },
     {
         "Modality / Model": "Proposed Tri-Modal Fusion",
         "Architecture": "Conceptual 783-d (Text 768 + Behav 8 + Facial 7)",
         "Training Dataset": "Unpaired (Proposed Future Work)",
         "Notebook": "None (Report Proposal Only)",
-        "Implementation Status": render_status_badge("proposed", "Proposed Architecture"),
-        "Checkpoint on Disk": render_status_badge("proposed", "Not Implemented"),
+        "Implementation": "Proposed Architecture",
+        "Trained": "No",
+        "Operational": "Not Operational (Proposed)",
+        "Checkpoint on Disk": "Not Implemented",
         "Operational Notes": "Clearly marked as proposed research extension.",
     },
 ]
@@ -219,12 +229,13 @@ st.markdown(
     """
     <div style="font-size:0.85rem; color:#9CA3AF; margin-bottom:0.75rem;">
         The table below provides strict transparency regarding which components were trained, evaluated, and saved versus theoretical proposals.
+        Statuses distinguish: <strong>Implemented</strong> (code exists), <strong>Trained</strong> (model weights exist), <strong>Operational</strong> (can execute live inference), and <strong>Proposed</strong> (future research architecture).
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-st.table(pd.DataFrame(audit_data).to_dict(orient="records"))
+st.table(pd.DataFrame(audit_data))
 
 # Navigation Cards
 st.markdown("### 🧭 Application Modules")

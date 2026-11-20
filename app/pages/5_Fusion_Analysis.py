@@ -51,12 +51,12 @@ col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 with col_f1:
     render_metric_card("Input Representation", "776 Dimensions", "768 Text + 8 Behavioral")
 with col_f2:
-    render_metric_card("Fusion F1 Score", "0.694", "5-Seed Mean (vs Text 0.649)")
+    render_metric_card("Historical F1 Score", "0.694", "5-Seed Mean (vs Text 0.649)")
 with col_f3:
     render_metric_card("CV AUROC Difference", "p = 0.2957", "Paired t-test (Not Sig)")
 with col_f4:
-    ckpt_text = "Verified on Disk" if status["checkpoint_exists"] else "Checkpoint Missing"
-    render_metric_card("Fusion Checkpoint", ckpt_text, status["checkpoint_path"])
+    ckpt_text = "Operational" if status["checkpoint_exists"] else "Weights Missing"
+    render_metric_card("Model Status", ckpt_text, status["checkpoint_path"])
 
 st.markdown("---")
 

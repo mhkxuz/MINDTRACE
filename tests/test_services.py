@@ -3,7 +3,6 @@ Integration tests for MindTracePlatform service layer.
 """
 
 import os
-import pytest
 from src.services.inference import MindTracePlatform
 
 

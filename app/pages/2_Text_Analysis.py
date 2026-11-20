@@ -47,14 +47,23 @@ col_b1, col_b2, col_b3, col_b4 = st.columns(4)
 with col_b1:
     render_metric_card("Base Model", "MentalBERT", "mental-bert-base-uncased")
 with col_b2:
-    render_metric_card("Test Accuracy", "84.26%", "Kaggle Benchmark (52,680 records)")
+    render_metric_card("Historical Accuracy", "84.26%", "Original Kaggle Benchmark (52.6K)")
 with col_b3:
-    render_metric_card("Macro F1", "82.90%", "Weighted F1: 84.21%")
+    render_metric_card("Historical F1", "82.90%", "Weighted F1: 84.21% (Notebook 2)")
 with col_b4:
-    ckpt_text = "Verified on Disk" if status["checkpoint_exists"] else "Checkpoint Missing"
-    render_metric_card("Model Checkpoint", ckpt_text, status["checkpoint_path"])
+    ckpt_text = "Operational" if status["checkpoint_exists"] else "Weights Missing"
+    render_metric_card("Model Status", ckpt_text, status["checkpoint_path"])
 
 st.markdown("---")
+
+if not status["checkpoint_exists"]:
+    st.info(
+        "ℹ️ **Status: Model Weights Missing from Disk (`models/text/text_model_final.pt`)**  \n"
+        "The base MentalBERT architecture, tokenizer, and embedding encoder are operational. "
+        "However, the fine-tuned 7-class classifier weights have not been placed on disk. "
+        "Historical benchmark metrics (84.26% accuracy) belong to the original training experiment and are preserved for research reference below. "
+        "Live text classification requires placing `text_model_final.pt` into `models/text/`."
+    )
 
 # Main Interface Tabs
 tab_single, tab_conv, tab_bench = st.tabs([

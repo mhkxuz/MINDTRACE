@@ -231,3 +231,33 @@ with c_d3:
         """,
         unsafe_allow_html=True,
     )
+
+# Section 5: Unpaired Modalities Constraint
+st.markdown("### ⚠️ 5. Critical Research Constraint: Unpaired Datasets & Alignment Roadmap")
+
+st.markdown(
+    """
+    <div class="research-card" style="border-left: 4px solid #F59E0B;">
+        <h4 style="color:#FBBF24; margin-top:0;">The Multimodal Alignment Challenge</h4>
+        <p style="color:#CBD5E1; font-size:0.9rem; line-height:1.6;">
+            A key methodological reality of the existing research is that <strong>FER2013 facial images and ESConv dialogue transcripts are completely separate, unpaired datasets</strong>.
+            FER2013 contains static facial crops from web searches without dialogue, while ESConv contains text conversations without video or audio recordings.
+        </p>
+        <p style="color:#94A3B8; font-size:0.88rem; line-height:1.6;">
+            <strong>Why 3-Branch Concatenation Cannot Be Pseudo-Trained:</strong>
+            Arbitrarily concatenating an unrelated facial emotion prediction to an ESConv conversation vector would introduce spurious, non-causal correlations and violate academic research integrity.
+            Therefore, the 783-dimensional model is properly classified as a <em>Proposed Architecture</em> awaiting an appropriately aligned dataset.
+        </p>
+        <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:8px; margin-top:0.8rem;">
+            <strong style="color:#A78BFA;">Future 3-Branch Implementation Roadmap:</strong>
+            <ol style="color:#94A3B8; font-size:0.85rem; margin-top:0.5rem; padding-left:1.2rem; line-height:1.6;">
+                <li><strong>Dataset Acquisition:</strong> Adopt synchronized multimodal dialogue benchmarks such as <strong>DAIC-WOZ</strong> (Depression Assessment Interview Corpus with synchronized audio, video, and transcripts) or <strong>AVEC / EATD-Corpus</strong>.</li>
+                <li><strong>Temporal Alignment:</strong> Align facial action units and affective expressions directly to the specific timestamps when patient utterances occur.</li>
+                <li><strong>Joint Representation:</strong> Extract 768-d text + 8-d dialogue dynamics + 7-d temporal affect features from identical human subjects.</li>
+                <li><strong>Formal Validation:</strong> Conduct multi-seed training with k-fold cross-validation and statistical significance testing against text-only baselines.</li>
+            </ol>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
