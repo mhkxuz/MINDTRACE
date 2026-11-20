@@ -1,0 +1,542 @@
+Mentor Project
+“Multimodal Mental Health Risk Detection Using
+Behavioral Interaction Features, Conversational Text,
+and Real-Time Facial Affect Analysis”
+Research Gap: Conversational Behavioral Features (Response
+Time, Typing Speed, Engagement) + Text Fusion
+What exists: Text content analysis, audio prosody, facial action units.
+What does NOT exist: Using how someone types — response delay, message
+length drop, engagement decline across turns — combined with text in a chatbot
+context.
+
+Workflow:
+Text content alone
+
+→ what user SAYS
+
+Behavioral features
+
+→ HOW user chats
+(message length slope,
+turn count, dropout,
+engagement ratio)
+
+Facial emotion
+
+→ what user LOOKS like
+
+Video emotion over time → how face CHANGES during session
+
+Key Findings:
+ESConv contains 11 emotion categories due to free-text annotation by crowd
+workers. The last 4 categories — nervousness, guilt, jealousy, pain — have fewer
+than 6 samples each, which is statistically insufficient for model training. We will
+merge these into a broader category or drop them, and work with the top 7
+
+emotions: anxiety, depression, sadness, anger, fear, disgust, and shame — which aligns
+with standard psychological emotion models like Ekman's 7 basic emotions."
+
+Datasets Available:​
+1.​ ESConv - Already Downloaded. Pre-processed + cleaned + visualised +
+handled null values
+(https://huggingface.co/datasets/thu-coai/esconv)
+2.​ Sentiment Analysis for Mental Health
+(https://www.kaggle.com/datasets/suchintikasarkar/sentiment-analysis-for-mental-h
+ealth )
+3.​ MentalChat 16K​
+(https://huggingface.co/datasets/ShenLab/MentalChat16K)
+4.​ FER-2013
+(https://www.kaggle.com/datasets/msambare/fer2013)
+
+2
+
+5.​ DAIC WOZ DATABASE
+(https://dcapswoz.ict.usc.edu/daic-woz-database-download/)
+6.​ VEATIC.zip
+(https://veatic.github.io/)
+
+Behavioral Features and their corresponding
+formulas:
+1.​ user_turn_count
+Count of rows where speaker == "user" for that conversation_id Example:
+Conversation 1 has 25 total turns, 13 are user → user_turn_count = 13
+
+2.​ assistant_turn_count
+Count of rows where speaker == "assistant" for that conversation_id
+Example: Conversation 1 has 25 total turns, 12 are assistant →
+assistant_turn_count = 12
+
+3.​ total_turn_count
+Total rows for that conversation_id regardless of speaker Formula:
+user_turn_count + assistant_turn_count = total_turn_count Example: 13 + 12
+= 25
+
+4.​ engagement_ratio
+Formula: user_turn_count / total_turn_count Example: 13 / 25 = 0.52
+Meaning: 0.52 means user sent 52% of all messages Higher = more engaged
+Lower = user barely responding, assistant carrying the conversation
+
+5.​ avg_user_msg_length
+Formula: mean of word count across ALL user messages in that conversation
+Example: Turn 1 user: "I feel sad" → 3 words Turn 3 user: "Everything has
+been overwhelming lately" → 5 words Turn 5 user: "ok" → 1 word avg = (3 + 5
++ 1) / 3 = 3.0 words
+
+3
+
+6.​ avg_assistant_msg_length
+Same formula but for assistant messages only Formula: mean(word_count)
+for all assistant turns in conversation
+
+7.​ user_msg_length_std
+Formula: standard deviation of word counts across user messages Example:
+Word counts per turn: [3, 5, 1, 8, 2] std = how much these vary from the
+average High std = user's message length is very inconsistent (erratic) Low
+std = user writes similar length messages each time
+
+8.​ last_user_turn
+Formula: max(turn_number) where speaker == "user" Example: If
+conversation has 25 turns and user's last message was at turn 22 →
+last_user_turn = 22
+
+9.​ last_speaker
+Who sent the very last message in the conversation Formula: speaker of the
+row with highest turn_number Values: "user" or "assistant"
+
+10.​ ended_by_user
+Formula: 1 if last_speaker == "user" else 0 Meaning: 1 = user sent the final
+message (normal ending) 0 = assistant sent final message and user never
+replied (possible dropout)
+
+11.​ msg_length_slope
+Formula: Linear regression slope of word_count over turn sequence
+Example: Turn 1: 15 words Turn 2: 12 words Turn 3: 8 words Turn 4: 4 words
+Turn 5: 2 words Slope = -3.2 (negative = shrinking = USER WITHDRAWING)
+Turn 1: 3 words Turn 2: 6 words Turn 3: 10 words Turn 4: 15 words Slope =
++4.0 (positive = growing = USER OPENING UP) This is your most important
+Gap 1 feature. Negative slope = possible depression/withdrawal signal
+
+12.​ dropout_gap
+Formula: total_turn_count - last_user_turn Example: Conversation has 25
+turns total User's last message was at turn 20 dropout_gap = 25 - 20 = 5
+Meaning: 5 assistant messages went unanswered at the end High gap = user
+stopped responding = dropout signal
+
+13.​ dropout_flag
+4
+
+Formula: 1 if dropout_gap > 2 else 0 Example: dropout_gap = 5 →
+dropout_flag = 1 (user likely dropped out) dropout_gap = 1 → dropout_flag =
+0 (normal ending)
+
+14.​
+
+emotion_type
+
+Already labeled in dataset by crowd workers Values: anxiety, depression, sadness,
+anger, fear, disgust, shame... This is your TARGET LABEL — what you are trying to
+predict
+
+15.​
+
+problem_type
+
+Already in dataset Values: job crisis, academic pressure, breakup with partner,
+ongoing depression, problems with friends...
+
+16.​
+
+initial_emotion_intensity
+
+Already in dataset — rated 1 to 5 How distressed was the user at the START of
+conversation? 1 = mild, 5 = severe Rated by the seeker (user) themselves before
+conversation
+
+17.​
+
+final_emotion_intensity
+
+Already in dataset — rated 1 to 5 How distressed was the user at the END of
+conversation? If initial=5 and final=2 → conversation helped a lot If initial=5 and
+final=4 → barely helped
+
+18.​
+
+seeker_empathy_score
+
+Already in dataset — rated 1 to 5 Did the user feel the assistant was empathetic? 5 =
+very empathetic, 1 = not at all
+
+19.​
+
+number_of_turns
+
+Already in dataset Total turns — same as your computed total_turn_count You can
+cross-check: they should match
+
+20.​
+
+emotion_encoded
+
+Formula: LabelEncoder converts text to number
+anxiety → 0 depression → 1 disgust → 2 fear → 3 sadness → 4 shame → 5 anger →
+6 (alphabetical order by default)
+This is needed because ML models need numbers not text
+
+Fusion model (The final novelty)
+5
+
+What the Fusion Model Actually Does
+Think of it like three doctors examining the same patient simultaneously:
+Doctor 1 — Reads what the patient WROTE
+Doctor 2 — Observes HOW the patient communicated
+Doctor 3 — Looks at the patient's FACE
+
+All three give their opinion → Chief Doctor makes final decision
+That "Chief Doctor" is your fusion model.
+
+The Three Inputs Going Into Fusion
+Input 1 — Text Branch (768 numbers)
+MentalBERT reads the actual conversation content and converts it into 768 numbers
+representing the meaning of what was said.
+Example:
+"I don't enjoy anything anymore" → MentalBERT → [0.23, -0.41, 0.87, ...768
+values]
+This captures WHAT the person said.
+Input 2 — Behavioral Branch (8 numbers)
+Your ESConv-extracted features. This is your Gap 1 contribution.
+turn_count
+
+6
+
+=6
+
+(very low)
+
+engagement_ratio = 0.31 (very low — barely responding)
+avg_msg_length
+
+= 4.2
+
+(very short messages)
+
+msg_length_slope = -2.8 (getting shorter each turn)
+dropout_flag
+
+=1
+
+(abandoned session)
+
+dropout_gap
+
+=5
+
+(5 messages went unanswered)
+
+msg_length_std
+
+= 1.2
+
+(inconsistent lengths)
+
+ended_by_user
+
+=0
+
+(user did not close conversation)
+
+This captures HOW the person communicated.
+Input 3 — Facial Emotion Branch (7 numbers)
+FER2013-trained CNN reads the webcam/image and outputs 7 probability scores.
+angry = 0.05 disgust = 0.02 fear = 0.08 happy = 0.01 neutral = 0.12 sad = 0.61 ← dominant
+surprise= 0.11
+
+This captures what the person LOOKS LIKE.
+
+What Fusion Calculates
+The model concatenates all three into one vector:
+[768 text values] + [8 behavioral values] + [7 facial values]
+
+7
+
+= 783-dimensional combined representation
+↓
+Neural network layers process this
+↓
+Output: Probability score for each of 7 mental health classes
+
+Notebook 3 — Key Findings & Future Role
+
+1. What Notebook 3 Actually Was
+Dataset
+
+: Kaggle Sentiment Analysis for Mental Health
+
+Records
+
+: 52,680 labeled text samples
+
+Labels
+
+: 7 classes (Normal, Depression, Suicidal, Anxiety,
+Bipolar, Stress, Personality Disorder)
+
+Model
+
+: MentalBERT (BERT pre-trained on mental-health text)
+
+Task
+
+: Fine-tune MentalBERT to classify text into these 7 categories
+
+2. Key Findings
+Finding 1 — Model Learned Successfully, No Underfitting
+Epoch 1 → Train Acc: 78.9% | Val Acc: 82.4%
+Epoch 2 → Train Acc: 86.1% | Val Acc: 83.8%
+Epoch 3 → Train Acc: 90.4% | Val Acc: 84.0%
+
+8
+
+Loss steadily decreased across epochs (0.53 → 0.34 → 0.24), confirming the model was
+genuinely learning patterns, not stuck or broken.
+Finding 2 — Strong Final Performance
+Test Accuracy : 84.26%
+F1 Macro
+
+: 82.90%
+
+F1 Weighted
+
+: 84.21%
+
+This is a strong, publishable result for a 7-class mental-health classification task —
+comparable to benchmarks in existing literature (typically 70-85% F1 for multi-class mental
+health text classification).
+Finding 3 — Overfitting Begins After Epoch 2-3​
+Train-Val gap:
+Epoch 1 → gap = -3.5% (val higher than train, still learning)
+Epoch 2 → gap = +2.3% (train starting to pull ahead)
+Epoch 3 → gap = +6.4% (train clearly ahead — overfitting signal)
+
+This told you to stop at 3 epochs rather than train longer — more epochs would memorize
+training data rather than generalize.
+Finding 4 — Class-Level Weakness Identified
+Class
+
+Precision Recall F1
+
+Normal
+
+0.95
+
+0.97
+
+0.96 ← strongest
+
+Anxiety
+
+0.90
+
+0.86
+
+0.88
+
+Bipolar
+
+0.88
+
+0.85
+
+0.87
+
+9
+
+Depression
+Stress
+
+0.78
+
+0.81
+
+0.79
+
+0.79
+
+0.80
+
+0.79
+
+Personality Disorder
+
+0.85
+
+0.72
+
+Suicidal
+
+0.71
+
+0.73 ← weakest
+
+0.75
+
+0.78
+
+Suicidal class had the lowest recall (71%) — meaning 29% of genuinely suicidal text
+samples were misclassified, most likely confused with Depression due to overlapping
+language. This is clinically the most important class to get right, and it’s your weakest point.
+Finding 5 — Gated Model Access Issue, Resolved
+You discovered mental/mental-bert-base-uncased required HuggingFace
+authentication (gated repo). This was resolved by logging in with an HF token in Colab — a
+practical deployment lesson worth noting.
+
+3. How Notebook 3 Will Be Used in Future Parts
+Role 1 — Pretrained Text Encoder for ESConv (Notebook 5)
+OLD JOB (Notebook 3)
+
+→ NEW JOB (Notebook 5)
+
+Predict 7 Kaggle categories → Convert ESConv text into 768-number embeddings
+Full model with classifier → Classifier head removed, only the
+head
+
+"understanding" part kept
+
+You don’t retrain MentalBERT from scratch for ESConv — you reuse the language
+understanding it already learned from 52,680 mental-health examples. This is called
+
+10
+
+transfer learning — the model already knows mental-health vocabulary, tone, and
+patterns; you’re just pointing it at new text.
+Role 2 — Becomes “Model A” Baseline in Your Ablation Study
+Model A (Text only)
+
+← built using this same MentalBERT encoder,
+
+now applied to ESConv situation text,
+predicting HIGH/LOW distress (Option B)
+
+This is the text-only baseline you compare Model B (behavioral) and Model C (fusion)
+against.
+Role 3 — One Branch of the Final Fusion Model
+Fusion Model Input:
+Branch 1 (Text)
+
+← THIS Notebook 3 encoder's 768-dim output
+
+Branch 2 (Behavioral) ← 8 features from ESConv turns
+Branch 3 (Facial)
+
+← 7 scores from FER2013 model (Notebook 4)
+
+ook 4)
+The 768-number embedding this model produces becomes one-third of your fusion
+model’s input.
+Role 4 — Validation/Credibility Section of Your Paper
+Paper structure:
+Section: "Text Encoder Pretraining and Validation"
+→ Report: 84.26% accuracy, 0.829 F1 Macro on Kaggle benchmark
+
+11
+
+→ Purpose: Proves the text encoder is reliable BEFORE using it
+in the main experiment — establishes credibility
+
+Role 5 — Motivates Your Core Research Question
+The Suicidal-class weakness (71% recall) becomes your research
+MOTIVATION for the fusion approach:
+
+"Text alone misses nearly 30% of high-risk cases. This motivates
+investigating whether behavioral signals (Gap 1) can help identify
+cases where text alone is ambiguous or insufficient."
+
+This is actually a strong narrative thread — Notebook 3’s weakness directly sets up WHY
+your fusion model (Notebook 5) matters.
+
+Summary Table
+Finding
+
+What It Shows
+
+Future Use
+
+84.26% accuracy,
+
+Model learned well
+
+Reported as pretraining validation
+
+converged at 3 epochs
+
+without overfitting badly
+
+in paper
+
+Suicidal class recall =
+
+Text alone struggles on
+
+Motivates the entire fusion
+
+71% (weakest)
+
+highest-risk class
+
+research question
+
+12
+
+Train-val gap widened
+
+Model fully trained, more
+
+Confirms you made the right call
+
+after epoch 2
+
+epochs = overfitting
+
+stopping at 3 epochs
+
+MentalBERT
+
+Model understands
+
+Reused as text encoder for ESConv
+
+successfully fine-tuned
+
+mental-health language
+
+in Notebook 5
+
+Gated repo access
+
+Practical deployment
+
+Needed again whenever
+
+resolved via HF login
+
+knowledge
+
+MentalBERT is loaded in future
+notebooks
+
+One Paragraph for Your Mentor
+“Notebook 3 fine-tuned MentalBERT on 52,680 Kaggle mental-health posts across 7
+categories, achieving 84.26% accuracy and 0.829 F1 Macro, with the model
+converging cleanly by epoch 3 before overfitting began. The weakest performing
+class was ‘Suicidal’ at 71% recall, frequently confused with Depression — this
+directly motivates our core research question, since it shows text alone is insufficient
+for the most clinically critical cases. Going forward, this model is not reused for its
+original 7-class prediction task; instead, we strip its classification head and reuse it
+purely as a pretrained text encoder, converting ESConv conversation text into
+768-dimensional embeddings. This becomes the ‘Model A’ text-only baseline and the
+text branch of our fusion architecture in Notebook 5, where we test whether
+behavioral and facial signals can close the gap that text alone leaves open.”
+
+13
+
+

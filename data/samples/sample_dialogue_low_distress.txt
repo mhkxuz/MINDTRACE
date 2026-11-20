@@ -1,0 +1,9 @@
+User: Hi there, I wanted to talk through some stress I have been feeling about an upcoming exam.
+Assistant: Hello! I would be glad to help you work through that. When is your exam, and how has your preparation been feeling?
+User: It is in three days. I have revised most of the material, but my confidence fluctuates whenever I take practice quizzes.
+Assistant: That fluctuation is very normal when test day approaches. The fact that you have already revised most material shows real dedication.
+User: Thank you, that actually helps put things into perspective. I think creating a short checklist for tomorrow will calm my nerves.
+Assistant: That sounds like a concrete, grounded plan. Breaking things down often restores our sense of control.
+User: Exactly. I appreciate your encouragement, I am going to get a good night of sleep now!
+Assistant: You are very welcome! Rest is an essential part of preparing. Wishing you all the best!
+User: Thanks again, goodnight!

@@ -1,0 +1,113 @@
+{
+  "platform_name": "MINDTRACE",
+  "subtitle": "Multimodal Mental Health Research Platform",
+  "models": {
+    "text_classification": {
+      "name": "MentalBERT 7-Class Classifier",
+      "architecture": "AutoModelForSequenceClassification (mental/mental-bert-base-uncased)",
+      "task": "7-Category Mental Health Classification",
+      "classes": [
+        "Anxiety",
+        "Bipolar",
+        "Depression",
+        "Normal",
+        "Personality disorder",
+        "Stress",
+        "Suicidal"
+      ],
+      "input_modality": "Conversational Text (Single statement or dialogue turns)",
+      "input_dimension": "Tokenized text (max_length=128)",
+      "dataset": "Kaggle Sentiment Analysis for Mental Health (52,680 records)",
+      "training_epochs": 3,
+      "benchmark_metrics": {
+        "accuracy": 0.8426,
+        "macro_f1": 0.8290,
+        "weighted_f1": 0.8421
+      },
+      "checkpoint_path": "models/text/text_model_final.pt",
+      "status": "Implemented & Evaluated in Notebook 2; Checkpoint Required on Disk"
+    },
+    "facial_emotion": {
+      "name": "FER2013 3-Block CNN",
+      "architecture": "FacialEmotionCNN (3 Conv Blocks: 32-64-128 filters + FC 256 + Dropout(0.5) + Linear 7)",
+      "task": "7-Emotion Facial Affect Recognition",
+      "classes": [
+        "angry",
+        "disgust",
+        "fear",
+        "happy",
+        "neutral",
+        "sad",
+        "surprise"
+      ],
+      "input_modality": "Facial Image (Upload or Live Webcam)",
+      "input_dimension": [3, 48, 48],
+      "dataset": "FER2013 (28,709 train, 7,178 test images)",
+      "training_epochs": 10,
+      "benchmark_metrics": {
+        "accuracy": 0.5879,
+        "macro_f1": 0.5647,
+        "weighted_f1": 0.5900
+      },
+      "checkpoint_path": "models/facial/fer_model.pt",
+      "status": "Implemented & Evaluated in Notebook 3; Checkpoint Required on Disk"
+    },
+    "behavioral_extraction": {
+      "name": "Behavioral Interaction Extractor",
+      "architecture": "Deterministic Rule & Statistical Regression Extractor",
+      "task": "13 Interaction Feature Extraction & Communication Pattern Profiling",
+      "features": [
+        "total_turn_count",
+        "engagement_ratio",
+        "avg_user_msg_length",
+        "msg_length_slope",
+        "dropout_flag",
+        "dropout_gap",
+        "user_msg_length_std",
+        "ended_by_user"
+      ],
+      "dataset": "ESConv (Emotional Support Conversation)",
+      "scaler_path": "artifacts/scalers/behav_scaler_esconv.pkl",
+      "status": "Implemented, Fully Functional & Reproducible"
+    },
+    "fusion_model": {
+      "name": "Text + Behavioral Distress Fusion (Model C)",
+      "architecture": "FusionModelWeighted (Text branch: 768->32; Behavioral branch: 8->16; Classifier: 48->16->2)",
+      "task": "Binary Distress Detection (Lower vs. Higher Distress)",
+      "classes": [
+        "Lower Distress",
+        "Higher Distress"
+      ],
+      "input_modality": "Multimodal: MentalBERT 768-d text embedding + 8 scaled behavioral interaction features",
+      "input_dimension": 776,
+      "dataset": "ESConv (908 conversation records)",
+      "benchmark_metrics": {
+        "five_seed_holdout": {
+          "text_only_acc": 0.554,
+          "text_only_f1": 0.649,
+          "text_only_auroc": 0.496,
+          "behav_only_acc": 0.448,
+          "behav_only_f1": 0.583,
+          "behav_only_auroc": 0.370,
+          "fusion_acc": 0.576,
+          "fusion_f1": 0.694,
+          "fusion_auroc": 0.477
+        },
+        "five_fold_cv": {
+          "fusion_balanced_acc": 0.549,
+          "fusion_f1": 0.710,
+          "fusion_auroc": 0.559,
+          "paired_ttest_p_value": 0.2957
+        }
+      },
+      "checkpoint_path": "models/fusion/fusion_model.pt",
+      "status": "Architecture Verified; Checkpoint Required on Disk"
+    },
+    "proposed_three_branch": {
+      "name": "Proposed 3-Branch Multimodal Architecture (Text + Behavioral + Facial)",
+      "architecture": "Conceptual Fusion: 768 Text + 8 Behavioral + 7 Facial Emotion = 783 Dimensions",
+      "task": "Comprehensive Tri-Modal Mental Distress Estimation",
+      "status": "PROPOSED — Not Yet Implemented or Validated in Existing Research"
+    }
+  }
+}
