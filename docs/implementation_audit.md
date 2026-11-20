@@ -109,7 +109,7 @@ The research objective is to investigate whether combining conversational text, 
   - **Model C (Fusion - `FusionModelWeighted`)**:
     - Text branch: $\text{Linear}(768 \to 32) \to \text{ReLU} \to \text{Dropout}(0.4)$
     - Behavioral branch: $\text{Linear}(8 \to 16) \to \text{ReLU} \to \text{Dropout}(0.2)$
-    - Classifier: Concatenation $(32 + 16 = 48) \to \text{Linear}(48 \to 16) \to \text{ReLU} \to \text{Dropout}(0.3) \to \text{Linear}(16 \to 2)$ (25,970 parameters).
+    - Classifier: Concatenation $(32 + 32 = 64) \to \text{Linear}(64 \to 16) \to \text{ReLU} \to \text{Dropout}(0.4) \to \text{Linear}(16 \to 2)$ (25,970 parameters).
 - **Reported Experimental Results**:
   - **5-Seed Holdout Evaluation**:
     | Model | Accuracy (mean ± std) | Balanced Acc (mean ± std) | F1 (mean ± std) | AUROC (mean ± std) |
@@ -126,8 +126,9 @@ The research objective is to investigate whether combining conversational text, 
   - **Statistical Significance**: Paired t-test between Model C and Model A AUROC yielded a mean difference of $-0.0138$ with $p = 0.2957$.
   - **Conclusion**: The experimental data does **not** demonstrate a statistically significant performance advantage for fusion over text alone on this dataset.
 - **Audit Findings**:
-  - Cell 23 explicitly shows that neither `fusion_model.pt` nor `text_model_final.pt` were saved as persistent checkpoints in the repository.
-  - The notebook evaluated models dynamically inside the cross-validation and seed loops.
+  - Cell 23 showed that `fusion_model.pt` was not saved originally.
+  - **Resolution in MINDTRACE**: The training pipeline was reproduced in `src/models/train_fusion.py` using ESConv, generating MentalBERT embeddings, fitting the StandardScaler, and saving the trained weights to `models/fusion/fusion_model.pt` and `artifacts/scalers/behav_scaler_esconv.pkl`. Live fusion inference is verified and operational.
+  - See `docs/model_recovery_report.md` for complete recovery audit details.
 
 ---
 

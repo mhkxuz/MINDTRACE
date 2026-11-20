@@ -153,13 +153,16 @@ Open your browser at `http://localhost:8501`.
 
 Execute the complete automated test suite:
 ```bash
-PYTHONPATH=. pytest tests/
+pytest
 ```
 The test suite validates:
 * Mathematical correctness of all 13 behavioral metrics and withdrawal detection.
 * Exact parameter counts for `FacialEmotionCNN` (1,274,951), `TextOnlyModel` (98,690), `BehavioralOnlyModel` (850), and `FusionModelWeighted` (25,970).
 * 776-dimensional vector concatenation for multimodal fusion.
+* Live two-branch binary distress fusion inference.
 * Safe and graceful handling of missing model checkpoints without crashing.
+
+For detailed audit information on model recovery and verification, see [docs/model_recovery_report.md](docs/model_recovery_report.md).
 
 ---
 

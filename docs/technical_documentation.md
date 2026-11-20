@@ -39,6 +39,7 @@ multimodal-mental-health/
 │   └── test_images/                   # Verification images
 ├── docs/
 │   ├── implementation_audit.md        # Audit of notebooks vs research report
+│   ├── model_recovery_report.md       # Autonomous model recovery & audit report
 │   ├── research_report.pdf            # Accompanying research report
 │   └── technical_documentation.md     # Technical system documentation
 ├── models/
