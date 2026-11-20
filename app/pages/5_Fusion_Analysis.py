@@ -123,7 +123,7 @@ Assistant: We can take this one breath at a time."""
                     st.dataframe(pd.DataFrame([{
                         "Feature": col,
                         "Value": res["behavioral_features"].get(col, 0.0)
-                    } for col in FUSION_BEHAVIORAL_COLS]), use_container_width=True)
+                    } for col in FUSION_BEHAVIORAL_COLS]), width='stretch')
                 with c_ext2:
                     st.write("**Text Representation:**")
                     st.write(f"MentalBERT Target Text: *\"{res.get('target_text')}\"*")
@@ -143,7 +143,7 @@ Assistant: We can take this one breath at a time."""
                         title="Binary Distress Probability Distribution",
                         highlight_label=pred_label,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
                 with c_res2:
                     st.markdown("##### 🧬 Input Dimensions Verified")

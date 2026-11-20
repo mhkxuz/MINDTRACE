@@ -118,7 +118,7 @@ with tab_cv:
             margin=dict(l=10, r=10, t=20, b=20),
             height=320,
         )
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, width='stretch')
 
     st.markdown(
         """
@@ -155,7 +155,7 @@ with tab_training:
             height=280,
             margin=dict(l=10, r=10, t=20, b=20),
         )
-        st.plotly_chart(fig_text, use_container_width=True)
+        st.plotly_chart(fig_text, width='stretch')
         st.caption("Training converged cleanly by epoch 3 before overfitting commenced.")
 
     with col_curv2:
@@ -174,7 +174,7 @@ with tab_training:
             height=280,
             margin=dict(l=10, r=10, t=20, b=20),
         )
-        st.plotly_chart(fig_fer, use_container_width=True)
+        st.plotly_chart(fig_fer, width='stretch')
         st.caption("Trained with Adam (lr=1e-3), reaching 58.79% generalization accuracy on the test partition.")
 
 with tab_limits:

@@ -116,7 +116,7 @@ Assistant: We can pause here if you need a break."""
 
             with col_chart:
                 fig = plot_turn_length_trend(turns_data)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
             with col_withd:
                 st.markdown("##### 🚨 Withdrawal Pattern Profiling")
@@ -181,18 +181,18 @@ with tab_csv:
         try:
             df_in = pd.read_csv(uploaded_csv)
             st.write(f"Loaded CSV with {len(df_in)} rows.")
-            st.dataframe(df_in.head(6), use_container_width=True)
+            st.dataframe(df_in.head(6), width='stretch')
 
             if st.button("Process All Conversations in CSV"):
                 with st.spinner("Extracting behavioral metrics across all conversations..."):
                     summary_df, _ = platform.analyze_behavioral_dataframe(df_in)
 
                 st.success(f"Successfully processed {len(summary_df)} conversations!")
-                st.dataframe(summary_df, use_container_width=True)
+                st.dataframe(summary_df, width='stretch')
 
                 # Summary statistics
                 st.markdown("##### Aggregate Statistical Summary")
-                st.dataframe(summary_df[FUSION_BEHAVIORAL_COLS].describe(), use_container_width=True)
+                st.dataframe(summary_df[FUSION_BEHAVIORAL_COLS].describe(), width='stretch')
         except Exception as e:
             st.error(f"Error parsing CSV: {e}")
 

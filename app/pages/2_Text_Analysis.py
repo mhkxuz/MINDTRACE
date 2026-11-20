@@ -123,7 +123,7 @@ with tab_single:
                         title="MentalBERT 7-Class Probability Distribution",
                         highlight_label=pred_class,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
                 with col_res2:
                     st.markdown("##### 🔍 Uncertainty Quantification")
@@ -188,7 +188,7 @@ Assistant: Withdrawal is often a sign of overwhelming exhaustion. Please take ge
                         title="Aggregated Conversation 7-Class Distribution",
                         highlight_label=agg_pred["predicted_class"],
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 with c2:
                     st.markdown("##### Turn Breakdown")
                     if res_conv.get("turn_predictions"):

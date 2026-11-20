@@ -88,7 +88,7 @@ with tab_upload:
         col_img, col_pred = st.columns([1, 2])
 
         with col_img:
-            st.image(image, caption="Uploaded Image", use_container_width=True)
+            st.image(image, caption="Uploaded Image", width='stretch')
             st.caption(f"Original dimensions: {image.size[0]} x {image.size[1]} pixels")
 
         with col_pred:
@@ -118,7 +118,7 @@ with tab_upload:
                         title="FER2013 7-Emotion Softmax Distribution",
                         highlight_label=dom,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
 with tab_cam:
     st.markdown("#### Optional Live Webcam Analysis")
@@ -130,7 +130,7 @@ with tab_cam:
         cam_pil = Image.open(camera_image)
         c_cam1, c_cam2 = st.columns([1, 2])
         with c_cam1:
-            st.image(cam_pil, caption="Captured Frame", use_container_width=True)
+            st.image(cam_pil, caption="Captured Frame", width='stretch')
         with c_cam2:
             if st.button("Classify Webcam Frame", key="btn_run_webcam_fer"):
                 with st.spinner("Analyzing captured frame..."):
@@ -147,7 +147,7 @@ with tab_cam:
                         title="Webcam Frame Emotion Probabilities",
                         highlight_label=dom_cam,
                     )
-                    st.plotly_chart(fig_cam, use_container_width=True)
+                    st.plotly_chart(fig_cam, width='stretch')
 
 with tab_metrics:
     st.markdown("#### 🔬 Published FER2013 Benchmark Metrics (Notebook 3)")
