@@ -1,3 +1,2 @@
-# System apt dependencies for Streamlit Community Cloud
 libgl1
 libglib2.0-0
