@@ -23,6 +23,19 @@ load_dotenv()
 import torch
 import numpy as np
 
+from src.utils.config import (
+    get_secret_or_env,
+    get_hf_token,
+    get_model_repo,
+    get_artifact_url,
+    is_cloud_environment,
+)
+from src.utils.artifact_manager import (
+    verify_text_model_export,
+    ensure_fine_tuned_mentalbert,
+    DEFAULT_TEXT_EXPORT_DIR,
+)
+
 # Exact 7 classes from text_model.ipynb (le_text.classes_)
 TEXT_CLASSES = [
     "Anxiety",
@@ -97,12 +110,12 @@ class MentalBERTService:
         # 1. Path configuration: Prefer exported safetensors model directory if present
         if checkpoint_path is not None:
             self.checkpoint_path = checkpoint_path
-        elif os.path.isdir(DEFAULT_EXPORTED_MODEL_DIR):
-            self.checkpoint_path = DEFAULT_EXPORTED_MODEL_DIR
+        elif os.path.isdir(DEFAULT_TEXT_EXPORT_DIR) and verify_text_model_export(DEFAULT_TEXT_EXPORT_DIR):
+            self.checkpoint_path = DEFAULT_TEXT_EXPORT_DIR
         else:
-            self.checkpoint_path = os.getenv("TEXT_MODEL_PATH", DEFAULT_EXPORTED_MODEL_DIR)
+            self.checkpoint_path = get_secret_or_env("TEXT_MODEL_PATH", DEFAULT_TEXT_EXPORT_DIR)
 
-        self.base_model_path = base_model_path or os.getenv(
+        self.base_model_path = base_model_path or get_secret_or_env(
             "BASE_MENTALBERT_PATH", DEFAULT_BASE_MODEL_NAME
         )
 
@@ -112,10 +125,11 @@ class MentalBERTService:
         else:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # 3. Offline enforcement: online download allowed only behind explicit opt-in
-        self.allow_online_download = os.getenv(
+        # 3. Offline enforcement: online download allowed on cloud or behind explicit secrets/opt-in
+        env_allow = get_secret_or_env(
             "ALLOW_ONLINE_MODEL_DOWNLOAD", "0"
         ).strip().lower() in ("1", "true", "yes")
+        self.allow_online_download = env_allow or is_cloud_environment() or (get_hf_token() is not None)
 
         # 4. Decoupled lazy models
         self.classifier_tokenizer = None
@@ -128,29 +142,30 @@ class MentalBERTService:
 
     def is_classifier_available(self) -> bool:
         """
-        Check whether the fine-tuned classifier is present on disk
-        without loading heavy model weights.
+        Check whether the fine-tuned classifier is present on disk or configured for download.
+        Without loading heavy model weights.
         """
         path = self.checkpoint_path
         if not path:
             return False
 
         if os.path.isdir(path):
-            has_config = os.path.exists(os.path.join(path, "config.json"))
-            has_weights = (
-                os.path.exists(os.path.join(path, "model.safetensors"))
-                or os.path.exists(os.path.join(path, "pytorch_model.bin"))
-            )
-            return has_config and has_weights
+            if verify_text_model_export(path):
+                return True
         elif os.path.isfile(path):
             return os.path.exists(path)
+
+        # If running on cloud and a remote source is configured in Streamlit Secrets
+        if get_model_repo("text") or get_artifact_url("text_model"):
+            return True
 
         return False
 
     def is_base_encoder_available(self) -> bool:
         """
         Check whether the frozen base MentalBERT encoder is available locally in the
-        local Hugging Face cache or local filesystem without loading tensor weights.
+        local Hugging Face cache or local filesystem without loading tensor weights,
+        or ready for authenticated download.
         """
         # If it's a local directory path
         if os.path.isdir(self.base_model_path):
@@ -165,8 +180,8 @@ class MentalBERTService:
             if os.path.exists(snapshots_dir) and os.listdir(snapshots_dir):
                 return True
 
-        # If online download is explicitly opted-in, consider it resolvable
-        if self.allow_online_download:
+        # If online download is explicitly opted-in or HF token is available
+        if self.allow_online_download or get_hf_token():
             return True
 
         return False
@@ -175,41 +190,43 @@ class MentalBERTService:
         """
         Load fine-tuned 7-class sequence classifier from local exported model directory
         or legacy .pt checkpoint file.
-        Strictly enforces offline loading by default (local_files_only=True).
+        Strictly enforces offline loading once artifacts are verified on disk.
         """
         if self.is_classifier_loaded and self.classifier_model is not None:
             return True
 
-        if not self.is_classifier_available():
-            self.is_classifier_loaded = False
-            return False
+        # Ensure artifacts exist (downloads from Hugging Face if secrets are configured and weights missing)
+        if not verify_text_model_export(self.checkpoint_path):
+            success, msg = ensure_fine_tuned_mentalbert(self.checkpoint_path)
+            if not success:
+                print(f"[MentalBERTService] {msg}")
+                self.is_classifier_loaded = False
+                return False
 
         try:
             from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
-            local_only = not self.allow_online_download
 
             # Case A: Local directory export (models/text/mentalbert_best_export/)
             if os.path.isdir(self.checkpoint_path):
                 self.classifier_tokenizer = AutoTokenizer.from_pretrained(
                     self.checkpoint_path,
-                    local_files_only=local_only,
+                    local_files_only=True,
                 )
                 self.classifier_model = AutoModelForSequenceClassification.from_pretrained(
                     self.checkpoint_path,
-                    local_files_only=local_only,
+                    local_files_only=True,
                 )
             # Case B: Legacy single .pt state-dict file
             elif os.path.isfile(self.checkpoint_path):
                 base_name = self.base_model_path
                 self.classifier_tokenizer = AutoTokenizer.from_pretrained(
                     base_name,
-                    local_files_only=local_only,
+                    local_files_only=True,
                 )
                 model = AutoModelForSequenceClassification.from_pretrained(
                     base_name,
                     num_labels=len(TEXT_CLASSES),
-                    local_files_only=local_only,
+                    local_files_only=True,
                 )
                 state_dict = torch.load(self.checkpoint_path, map_location=self.device)
                 model.load_state_dict(state_dict)
@@ -233,30 +250,37 @@ class MentalBERTService:
         """
         Load frozen base MentalBERT model for generating 768-dim embeddings for multimodal fusion,
         strictly matching Cell 6 / Cell 7 of notebooks/fusion_model.ipynb.
-        Enforces local offline loading from local cache (local_files_only=True).
+        Enforces local offline loading from local cache when available; falls back to authenticated
+        download if local cache is empty (e.g. on fresh Streamlit Cloud container).
         """
         if self.is_embedding_loaded and self.base_embedding_model is not None:
             return True
 
-        if not self.is_base_encoder_available():
-            raise FileNotFoundError(
-                f"Base MentalBERT model '{self.base_model_path}' not found in local cache. "
-                "Fusion requires the frozen base encoder to preserve exact feature alignment."
-            )
-
         try:
             from transformers import AutoTokenizer, AutoModel
 
-            local_only = not self.allow_online_download
+            # 1. Attempt offline local cache load first (preserves local Arch Linux dev path)
+            try:
+                self.base_tokenizer = AutoTokenizer.from_pretrained(
+                    self.base_model_path,
+                    local_files_only=True,
+                )
+                model = AutoModel.from_pretrained(
+                    self.base_model_path,
+                    local_files_only=True,
+                )
+            except Exception:
+                # 2. Local cache miss (e.g. Streamlit Cloud) -> download using HF_TOKEN
+                hf_token = get_hf_token()
+                self.base_tokenizer = AutoTokenizer.from_pretrained(
+                    self.base_model_path,
+                    token=hf_token,
+                )
+                model = AutoModel.from_pretrained(
+                    self.base_model_path,
+                    token=hf_token,
+                )
 
-            self.base_tokenizer = AutoTokenizer.from_pretrained(
-                self.base_model_path,
-                local_files_only=local_only,
-            )
-            model = AutoModel.from_pretrained(
-                self.base_model_path,
-                local_files_only=local_only,
-            )
             model.to(self.device)
             model.eval()
             self.base_embedding_model = model

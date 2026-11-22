@@ -54,13 +54,21 @@ with st.sidebar:
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         st.caption("Text (MentalBERT)")
-        txt_status = "ready" if status["text_model"]["checkpoint_exists"] else "missing"
-        txt_label = "Operational" if status["text_model"]["checkpoint_exists"] else "No Weights"
+        if status["text_model"]["checkpoint_exists"]:
+            txt_status, txt_label = "ready", "Operational"
+        elif "Cloud Configured" in status["text_model"]["status"]:
+            txt_status, txt_label = "ready", "Cloud Ready"
+        else:
+            txt_status, txt_label = "missing", "No Weights"
         st.markdown(render_status_badge(txt_status, txt_label), unsafe_allow_html=True)
     with col_s2:
         st.caption("Facial (FER CNN)")
-        fac_status = "ready" if status["facial_model"]["checkpoint_exists"] else "missing"
-        fac_label = "Operational" if status["facial_model"]["checkpoint_exists"] else "No Weights"
+        if status["facial_model"]["checkpoint_exists"]:
+            fac_status, fac_label = "ready", "Operational"
+        elif "Cloud Configured" in status["facial_model"]["status"]:
+            fac_status, fac_label = "ready", "Cloud Ready"
+        else:
+            fac_status, fac_label = "missing", "No Weights"
         st.markdown(render_status_badge(fac_status, fac_label), unsafe_allow_html=True)
 
     col_s3, col_s4 = st.columns(2)
@@ -69,8 +77,12 @@ with st.sidebar:
         st.markdown(render_status_badge("ready", "Operational"), unsafe_allow_html=True)
     with col_s4:
         st.caption("Fusion (C)")
-        fus_status = "ready" if status["fusion_model"]["checkpoint_exists"] else "missing"
-        fus_label = "Operational" if status["fusion_model"]["checkpoint_exists"] else "No Weights"
+        if status["fusion_model"]["checkpoint_exists"]:
+            fus_status, fus_label = "ready", "Operational"
+        elif "Cloud Configured" in status["fusion_model"]["status"]:
+            fus_status, fus_label = "ready", "Cloud Ready"
+        else:
+            fus_status, fus_label = "missing", "No Weights"
         st.markdown(render_status_badge(fus_status, fus_label), unsafe_allow_html=True)
 
     st.divider()

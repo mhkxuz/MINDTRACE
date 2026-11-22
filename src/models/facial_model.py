@@ -4,13 +4,19 @@ Faithfully reproduces the custom PyTorch CNN from:
 notebooks/facial_emotion_label.ipynb
 """
 
-import os
 from typing import Dict, Any, Optional, Union
 import torch
 import torch.nn as nn
 from PIL import Image
 import torchvision.transforms as transforms
 import numpy as np
+
+from src.utils.config import get_secret_or_env
+from src.utils.artifact_manager import (
+    verify_pt_checkpoint,
+    ensure_facial_model,
+    DEFAULT_FER_MODEL_PATH,
+)
 
 # Emotion labels in the exact order from facial_emotion_label.ipynb
 EMOTION_LABELS = [
@@ -84,8 +90,8 @@ def get_inference_transforms():
 
 class FacialEmotionService:
     def __init__(self, checkpoint_path: Optional[str] = None):
-        self.checkpoint_path = checkpoint_path or os.getenv(
-            "FER_MODEL_PATH", "models/facial/fer_model.pt"
+        self.checkpoint_path = checkpoint_path or get_secret_or_env(
+            "FER_MODEL_PATH", DEFAULT_FER_MODEL_PATH
         )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model: Optional[FacialEmotionCNN] = None
@@ -94,7 +100,11 @@ class FacialEmotionService:
         self.load_checkpoint()
 
     def load_checkpoint(self) -> bool:
-        if os.path.exists(self.checkpoint_path):
+        # Check if verified on disk; if missing, attempt downloading from secrets-configured source
+        if not verify_pt_checkpoint(self.checkpoint_path, min_bytes=1_000_000):
+            ensure_facial_model(self.checkpoint_path)
+
+        if verify_pt_checkpoint(self.checkpoint_path, min_bytes=1_000_000):
             try:
                 model = FacialEmotionCNN(num_classes=len(EMOTION_LABELS))
                 state_dict = torch.load(self.checkpoint_path, map_location=self.device)

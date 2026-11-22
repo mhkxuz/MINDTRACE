@@ -4,12 +4,21 @@ Faithfully reproduces the models and evaluation from:
 notebooks/fusion_model.ipynb
 """
 
-import os
 from typing import Dict, Any, Optional
 import torch
 import torch.nn as nn
 import numpy as np
 import joblib
+
+from src.utils.config import get_secret_or_env
+from src.utils.artifact_manager import (
+    verify_pt_checkpoint,
+    verify_scaler,
+    ensure_fusion_model,
+    ensure_behavioral_scaler,
+    DEFAULT_FUSION_MODEL_PATH,
+    DEFAULT_SCALER_PATH,
+)
 
 # Binary distress classes
 DISTRESS_CLASSES = [
@@ -137,11 +146,11 @@ class FusionService:
         checkpoint_path: Optional[str] = None,
         scaler_path: Optional[str] = None
     ):
-        self.checkpoint_path = checkpoint_path or os.getenv(
-            "FUSION_MODEL_PATH", "models/fusion/fusion_model.pt"
+        self.checkpoint_path = checkpoint_path or get_secret_or_env(
+            "FUSION_MODEL_PATH", DEFAULT_FUSION_MODEL_PATH
         )
-        self.scaler_path = scaler_path or os.getenv(
-            "BEHAV_SCALER_PATH", "artifacts/scalers/behav_scaler_esconv.pkl"
+        self.scaler_path = scaler_path or get_secret_or_env(
+            "BEHAV_SCALER_PATH", DEFAULT_SCALER_PATH
         )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model: Optional[FusionModelWeighted] = None
@@ -153,7 +162,10 @@ class FusionService:
         self.load_model()
 
     def load_scaler(self) -> bool:
-        if os.path.exists(self.scaler_path):
+        if not verify_scaler(self.scaler_path):
+            ensure_behavioral_scaler(self.scaler_path)
+
+        if verify_scaler(self.scaler_path):
             try:
                 self.scaler = joblib.load(self.scaler_path)
                 self.is_scaler_loaded = True
@@ -166,7 +178,10 @@ class FusionService:
         return False
 
     def load_model(self) -> bool:
-        if os.path.exists(self.checkpoint_path):
+        if not verify_pt_checkpoint(self.checkpoint_path, min_bytes=10_000):
+            ensure_fusion_model(self.checkpoint_path)
+
+        if verify_pt_checkpoint(self.checkpoint_path, min_bytes=10_000):
             try:
                 model = FusionModelWeighted(text_dim=768, behav_dim=8, num_classes=2)
                 state_dict = torch.load(self.checkpoint_path, map_location=self.device)

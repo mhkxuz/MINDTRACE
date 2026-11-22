@@ -12,6 +12,11 @@ from PIL import Image
 import numpy as np
 import pandas as pd
 
+from src.utils.config import (
+    get_model_repo,
+    get_artifact_url,
+    get_hf_token,
+)
 from src.features.behavioral import (
     extract_behavioral_features,
     get_fusion_feature_vector,
@@ -43,12 +48,41 @@ class MindTracePlatform:
         self.fusion_service = FusionService()
 
     def get_system_status(self) -> Dict[str, Any]:
-        """Inspect disk checkpoints and operational readiness of all models."""
+        """Inspect disk checkpoints, cloud configuration, and operational readiness of all models."""
         text_ckpt_exists = self.text_service.is_classifier_available()
         base_encoder_available = self.text_service.is_base_encoder_available()
         facial_ckpt_exists = os.path.exists(self.facial_service.checkpoint_path)
         fusion_ckpt_exists = os.path.exists(self.fusion_service.checkpoint_path)
         scaler_exists = os.path.exists(self.fusion_service.scaler_path)
+
+        # Status text determination
+        if text_ckpt_exists:
+            text_status_text = "Ready for Inference (Local Best Checkpoint - Epoch 2)"
+        elif get_model_repo("text") or get_artifact_url("text_model"):
+            text_status_text = "Cloud Configured (Will Download on Demand)"
+        else:
+            text_status_text = "Checkpoint Missing on Disk"
+
+        if base_encoder_available:
+            base_status_text = "Available in Local Cache"
+        elif get_hf_token():
+            base_status_text = "Cloud Configured (Will Download via HF_TOKEN)"
+        else:
+            base_status_text = "Missing in Local Cache"
+
+        if facial_ckpt_exists:
+            facial_status_text = "Ready for Inference"
+        elif get_model_repo("artifacts") or get_artifact_url("fer_model"):
+            facial_status_text = "Cloud Configured (Will Download on Demand)"
+        else:
+            facial_status_text = "Checkpoint Missing on Disk"
+
+        if fusion_ckpt_exists and scaler_exists:
+            fusion_status_text = "Ready for Inference"
+        elif get_model_repo("artifacts") or get_artifact_url("fusion_model"):
+            fusion_status_text = "Cloud Configured (Will Download on Demand)"
+        else:
+            fusion_status_text = "Checkpoint Missing on Disk"
 
         return {
             "text_model": {
@@ -56,7 +90,7 @@ class MindTracePlatform:
                 "checkpoint_path": self.text_service.checkpoint_path,
                 "checkpoint_exists": text_ckpt_exists,
                 "is_loaded": self.text_service.is_classifier_loaded,
-                "status": "Ready for Inference (Local Best Checkpoint - Epoch 2)" if text_ckpt_exists else "Checkpoint Missing on Disk",
+                "status": text_status_text,
                 "modality": "Conversational Text Categorization",
                 "classes": TEXT_CLASSES,
                 "benchmark_accuracy": "83.30%",
@@ -69,7 +103,7 @@ class MindTracePlatform:
                 "role": "768-d CLS text feature extraction for Multimodal Distress Fusion",
                 "is_available": base_encoder_available,
                 "is_loaded": self.text_service.is_embedding_loaded,
-                "status": "Available in Local Cache" if base_encoder_available else "Missing in Local Cache",
+                "status": base_status_text,
                 "modality": "Frozen Base CLS Embedding (768 dims)",
             },
             "facial_model": {
@@ -77,7 +111,7 @@ class MindTracePlatform:
                 "checkpoint_path": self.facial_service.checkpoint_path,
                 "checkpoint_exists": facial_ckpt_exists,
                 "is_loaded": self.facial_service.is_loaded,
-                "status": "Ready for Inference" if facial_ckpt_exists else "Checkpoint Missing on Disk",
+                "status": facial_status_text,
                 "modality": "Facial Affect (Static Image / Frame)",
                 "classes": EMOTION_LABELS,
                 "benchmark_accuracy": "58.79%",
@@ -97,7 +131,7 @@ class MindTracePlatform:
                 "checkpoint_path": self.fusion_service.checkpoint_path,
                 "checkpoint_exists": fusion_ckpt_exists,
                 "is_loaded": self.fusion_service.is_model_loaded,
-                "status": "Ready for Inference" if fusion_ckpt_exists else "Checkpoint Missing on Disk",
+                "status": fusion_status_text,
                 "modality": "Multimodal (768 base text + 8 behavioral = 776 dims)",
                 "benchmark_accuracy": "57.6%",
                 "benchmark_f1": "0.694",
