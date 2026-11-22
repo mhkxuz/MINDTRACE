@@ -46,6 +46,16 @@ render_header(
 
 render_disclaimer()
 
+# Dual-Encoder Architecture Notice
+st.markdown(
+    """
+    <div class="research-disclaimer" style="border-left-color: #6366F1; margin-bottom: 1.5rem;">
+        <strong>Dual-Encoder Architecture Decoupling:</strong> Text representations for Multimodal Distress Fusion are extracted using the original <em>frozen base MentalBERT encoder</em> (<code>mental/mental-bert-base-uncased</code>), matching the exact 768-d latent space from the fusion training benchmark (<code>notebooks/fusion_model.ipynb</code>). The 7-class fine-tuned classifier (<code>models/text/mentalbert_best_export</code>) is used exclusively for standalone text classification to prevent representation shift (measured cosine similarity of 0.3120).
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Benchmark Overview Bar
 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 with col_f1:
@@ -151,7 +161,7 @@ Assistant: We can take this one breath at a time."""
                         f"""
                         <div class="research-card">
                             <ul style="color:#CBD5E1; font-size:0.85rem; line-height:1.7; padding-left:1.2rem;">
-                                <li><strong>Text Embedding:</strong> 768 dimensions (MentalBERT)</li>
+                                <li><strong>Text Embedding:</strong> 768 dimensions (Frozen Base MentalBERT &mdash; <code>mental/mental-bert-base-uncased</code>)</li>
                                 <li><strong>Behavioral Features:</strong> 8 standardized numerical features</li>
                                 <li><strong>Concatenated Representation:</strong> 776 dimensions</li>
                                 <li><strong>Probability of High Distress:</strong> <span style="color:#F43F5E; font-weight:700;">{p_distress*100:.1f}%</span></li>

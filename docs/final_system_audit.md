@@ -13,7 +13,7 @@ This document presents the complete audit, model recovery investigation, retrain
 
 ### Core Audit Outcomes
 1. **Model Inventory & Checkpoints:**
-   - **Text Model (`models/text/text_model_final.pt`):** Fully reproducible training script `src/models/train_text_model.py` and 1-click Google Colab notebook `notebooks/train_text_model_colab.ipynb` created. Functional fine-tuned 7-class checkpoint (418 MB) saved on disk and verified with `MentalBERTService`.
+   - **Text Model (`models/text/mentalbert_best_export/`):** Full-scale fine-tuned MentalBERT 7-class sequence classifier in Safetensors format (438 MB) trained on 52,680 records. Achieved 83.30% test accuracy, 80.88% macro F1, and 75.77% suicidal recall. Integrated into `MentalBERTService` using a decoupled dual-encoder architecture: fine-tuned classifier for 7-class inference, frozen base MentalBERT (`mental/mental-bert-base-uncased`) for 768-d CLS extraction to protect downstream fusion model compatibility.
    - **Facial Emotion CNN (`models/facial/fer_model.pt`):** Fully retrained for 10 epochs on the complete FER2013 dataset (28,709 train images). Achieved 56.03% test accuracy (historical benchmark: 58.79%). Checkpoint (4.9 MB) saved to `models/facial/fer_model.pt` and verified operational in `FacialEmotionService` and the Streamlit UI.
    - **Behavioral Feature Extractor:** Fully operational rule-and-regression engine extracting 13 conversational metrics and 8 standardized fusion features, validated with the fitted ESConv `StandardScaler`.
    - **Multimodal Distress Fusion Model (`models/fusion/fusion_model.pt`):** Trained, saved, and verified (`FusionModelWeighted`, 25,970 parameters). Operates on 776-dimensional joint representations (768 text + 8 behavioral features) to classify binary distress.
@@ -26,7 +26,7 @@ This document presents the complete audit, model recovery investigation, retrain
    - Maintained strict scientific distinction: the implemented fusion model is a **2-branch (776-d)** network; the **3-branch (783-d)** model is classified as **Proposed Architecture**.
    - Explicitly documented the multimodal dataset alignment constraint: FER2013 facial images and ESConv dialogue transcripts are unpaired datasets from different human subjects, preventing valid 3-branch training without synchronized video-dialogue corpora (such as DAIC-WOZ).
 4. **Verification & Testing:**
-   - **19/19 automated pytest tests pass** (100% success rate), including behavioral extraction, edge cases (empty turns, whitespace, single turns, withdrawal patterns), parameter counts, checkpoint dynamic loading, and scaler transformations.
+   - **21/21 automated pytest tests pass** (100% success rate), including behavioral extraction, edge cases (empty turns, whitespace, single turns, withdrawal patterns), parameter counts, checkpoint dynamic loading, offline dual-encoder loading, and scaler transformations.
    - **All 7 Streamlit application pages pass official `AppTest`** execution with zero runtime exceptions.
    - **Pyflakes static analysis:** 0 errors, 0 warnings.
 
@@ -42,7 +42,7 @@ The platform strictly differentiates four operational states:
 
 | Component | Architecture / Spec | Training Dataset | Implementation Status | Trained Status | Operational Status | Checkpoint on Disk |
 |---|---|---|---|---|---|---|
-| **Text Classifier (MentalBERT)** | `mental-bert-base-uncased` (7 classes) | Kaggle Sentiment (52.6K posts) | Implemented | Yes (Fine-Tuned Checkpoint & Colab Pipeline) | **Operational** | `models/text/text_model_final.pt` (418 MB) |
+| **Text Classifier (MentalBERT)** | `mental-bert-base-uncased` (7 classes) | Kaggle Sentiment (52.6K posts) | Implemented | Yes (Fine-Tuned Safetensors Export & Colab Pipeline) | **Operational** | `models/text/mentalbert_best_export/` (438 MB Safetensors) |
 | **Facial Affect (FER CNN)** | 3-Block CNN (48x48 RGB -> 7 classes, 1.27M params) | FER2013 (28.7K train / 3.6K test) | Implemented | Yes (10 Epochs, 56.03% Acc) | **Operational** | `models/facial/fer_model.pt` (4.9 MB) |
 | **Behavioral Extractor** | Statistical turn metrics & linear regression slope | ESConv (908 dialogues) | Implemented | N/A (Rule Engine) | **Operational** | `artifacts/scalers/behav_scaler_esconv.pkl` (Present) |
 | **Multimodal Distress Fusion (Model C)** | `FusionModelWeighted` (776 dims -> 2 classes, 25,970 params) | ESConv (908 conversations) | Implemented | Yes (Trained & Saved) | **Operational** | `models/fusion/fusion_model.pt` (Present) |

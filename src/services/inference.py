@@ -44,22 +44,33 @@ class MindTracePlatform:
 
     def get_system_status(self) -> Dict[str, Any]:
         """Inspect disk checkpoints and operational readiness of all models."""
-        text_ckpt_exists = os.path.exists(self.text_service.checkpoint_path)
+        text_ckpt_exists = self.text_service.is_classifier_available()
+        base_encoder_available = self.text_service.is_base_encoder_available()
         facial_ckpt_exists = os.path.exists(self.facial_service.checkpoint_path)
         fusion_ckpt_exists = os.path.exists(self.fusion_service.checkpoint_path)
         scaler_exists = os.path.exists(self.fusion_service.scaler_path)
 
         return {
             "text_model": {
-                "name": "MentalBERT 7-Class Classifier",
+                "name": "MentalBERT 7-Class Classifier (Fine-Tuned Safetensors)",
                 "checkpoint_path": self.text_service.checkpoint_path,
                 "checkpoint_exists": text_ckpt_exists,
                 "is_loaded": self.text_service.is_classifier_loaded,
-                "status": "Ready for Inference" if text_ckpt_exists else "Checkpoint Missing on Disk",
-                "modality": "Conversational Text",
+                "status": "Ready for Inference (Local Best Checkpoint - Epoch 2)" if text_ckpt_exists else "Checkpoint Missing on Disk",
+                "modality": "Conversational Text Categorization",
                 "classes": TEXT_CLASSES,
-                "benchmark_accuracy": "84.26%",
-                "benchmark_macro_f1": "82.90%",
+                "benchmark_accuracy": "83.30%",
+                "benchmark_macro_f1": "80.88%",
+                "suicidal_recall": "75.77%",
+                "benchmark_type": "Reproduced held-out dataset benchmark (Kaggle sentiment test partition)",
+            },
+            "text_base_encoder": {
+                "name": "Frozen Base MentalBERT Encoder (mental/mental-bert-base-uncased)",
+                "role": "768-d CLS text feature extraction for Multimodal Distress Fusion",
+                "is_available": base_encoder_available,
+                "is_loaded": self.text_service.is_embedding_loaded,
+                "status": "Available in Local Cache" if base_encoder_available else "Missing in Local Cache",
+                "modality": "Frozen Base CLS Embedding (768 dims)",
             },
             "facial_model": {
                 "name": "FER2013 3-Block CNN",
@@ -87,7 +98,7 @@ class MindTracePlatform:
                 "checkpoint_exists": fusion_ckpt_exists,
                 "is_loaded": self.fusion_service.is_model_loaded,
                 "status": "Ready for Inference" if fusion_ckpt_exists else "Checkpoint Missing on Disk",
-                "modality": "Multimodal (768 text + 8 behavioral = 776 dims)",
+                "modality": "Multimodal (768 base text + 8 behavioral = 776 dims)",
                 "benchmark_accuracy": "57.6%",
                 "benchmark_f1": "0.694",
                 "benchmark_auroc": "0.477",
@@ -95,7 +106,7 @@ class MindTracePlatform:
             "proposed_tri_modal": {
                 "name": "Proposed 3-Branch Architecture (783 dims)",
                 "status": "Proposed Architecture (Not Yet Implemented/Validated)",
-                "modality": "Text (768) + Behavioral (8) + Facial Affect (7)",
+                "modality": "Base Text (768) + Behavioral (8) + Facial Affect (7)",
                 "is_loaded": False,
             },
         }

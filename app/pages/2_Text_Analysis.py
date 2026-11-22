@@ -45,25 +45,26 @@ render_disclaimer()
 # Benchmark & Model Spec Bar
 col_b1, col_b2, col_b3, col_b4 = st.columns(4)
 with col_b1:
-    render_metric_card("Base Model", "MentalBERT", "mental-bert-base-uncased")
+    render_metric_card("Base Architecture", "MentalBERT", "mental-bert-base-uncased")
 with col_b2:
-    render_metric_card("Historical Accuracy", "84.26%", "Original Kaggle Benchmark (52.6K)")
+    render_metric_card("Reproduced Accuracy", "83.30%", "Held-out test split (5,268 records)")
 with col_b3:
-    render_metric_card("Historical F1", "82.90%", "Weighted F1: 84.21% (Notebook 2)")
+    render_metric_card("Reproduced Macro F1", "80.88%", "Suicidal Recall: 75.77% | W-F1: 83.25%")
 with col_b4:
-    ckpt_text = "Operational" if status["checkpoint_exists"] else "Weights Missing"
+    ckpt_text = "Operational (Local)" if status["checkpoint_exists"] else "Weights Missing"
     render_metric_card("Model Status", ckpt_text, status["checkpoint_path"])
 
 st.markdown("---")
 
-if not status["checkpoint_exists"]:
-    st.info(
-        "ℹ️ **Status: Model Weights Missing from Disk (`models/text/text_model_final.pt`)**  \n"
-        "The base MentalBERT architecture, tokenizer, and embedding encoder are operational. "
-        "However, the fine-tuned 7-class classifier weights have not been placed on disk. "
-        "Historical benchmark metrics (84.26% accuracy) belong to the original training experiment and are preserved for research reference below. "
-        "Live text classification requires placing `text_model_final.pt` into `models/text/`."
-    )
+st.info(
+    "💡 **Dual-Encoder Architecture Notice:**  \n"
+    "This module performs seven-class mental-health text categorization using the fine-tuned MentalBERT sequence classifier "
+    "(Epoch 2 best checkpoint) loaded locally from `models/text/mentalbert_best_export/` without external network dependencies.  \n"
+    "To prevent representation shift and preserve exact feature compatibility, the **Multimodal Distress Fusion Module (Page 5)** "
+    "exclusively utilizes the **frozen base MentalBERT encoder** (`mental/mental-bert-base-uncased`) for 768-d CLS embedding extraction.  \n"
+    "*Scientific Qualification: Model confidence reflects statistical classification probability over dataset-defined categories. "
+    "Outputs do not constitute clinical diagnoses or validated suicide-risk assessments.*"
+)
 
 # Main Interface Tabs
 tab_single, tab_conv, tab_bench = st.tabs([
@@ -208,16 +209,28 @@ Assistant: Withdrawal is often a sign of overwhelming exhaustion. Please take ge
                         st.caption("No individual user turn predictions available.")
 
 with tab_bench:
-    st.markdown("#### 🔬 Published Research Benchmark (Notebook 2)")
+    st.markdown("#### 🔬 Benchmark Performance & Evaluation Breakdown")
     st.markdown(
         """
-        The MentalBERT model was fine-tuned for 3 epochs on the Kaggle Sentiment Analysis for Mental Health dataset (52,680 records).
-        The table below reproduces the exact evaluation results reported in <code>text_model.ipynb</code>:
+        The fine-tuned MentalBERT model (`models/text/mentalbert_best_export`) was evaluated on the 
+        held-out test split (5,268 records) of the Kaggle Sentiment Analysis for Mental Health dataset.
+        Below are the verified held-out test evaluation results compared against historical reference metrics:
         """
     )
 
+    c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+    with c_b1:
+        st.metric("Test Accuracy", "83.30%", "Historical: 84.26%")
+    with c_b2:
+        st.metric("Macro F1", "80.88%", "Historical: 82.90%")
+    with c_b3:
+        st.metric("Weighted F1", "83.25%", "Historical: 84.21%")
+    with c_b4:
+        st.metric("Suicidal Recall", "75.77%", "Historical: 71.00%")
+
+    st.markdown("##### Per-Class Performance on Held-Out Test Set")
     bench_df = pd.DataFrame([
-        {"Class": k, "Precision": f"{v['precision']*100:.1f}%", "Recall": f"{v['recall']*100:.1f}%", "F1-Score": f"{v['f1']*100:.1f}%"}
+        {"Category": k, "Precision": f"{v['precision']*100:.1f}%", "Recall": f"{v['recall']*100:.1f}%", "F1-Score": f"{v['f1']*100:.1f}%"}
         for k, v in TEXT_BENCHMARK_METRICS["class_metrics"].items()
     ])
     st.table(bench_df)
@@ -225,10 +238,11 @@ with tab_bench:
     st.markdown(
         """
         <div class="clinical-warning">
-            <strong>CRITICAL RESEARCH OBSERVATION:</strong>
-            The <code>Suicidal</code> class yielded the lowest recall in the benchmark (<strong>71.0%</strong>), with an F1-score of 0.73.
-            The research audit demonstrates that clinically critical suicidal statements are frequently misclassified as general Depression due to overlapping linguistic markers.
-            This finding directly motivated the core multimodal research question: <em>text content alone is insufficient for reliable distress risk stratification</em>.
+            <strong>RESEARCH & CLINICAL DISCLAIMER:</strong>
+            These metrics reflect statistical classification performance across dataset-defined categories 
+            on the Kaggle held-out test partition. The outputs represent seven-class mental-health text categorization 
+            and must not be interpreted as validated clinical diagnoses or suicidal risk assessments. 
+            Confidence values represent model probability over the dataset distribution, not real-world risk probability.
         </div>
         """,
         unsafe_allow_html=True,

@@ -1,0 +1,21 @@
+{
+    "model_name": "mental/mental-bert-base-uncased",
+    "architecture": "BERT Sequence Classification",
+    "num_labels": 7,
+    "class_names": [
+        "Anxiety",
+        "Bipolar",
+        "Depression",
+        "Normal",
+        "Personality disorder",
+        "Stress",
+        "Suicidal"
+    ],
+    "max_length": 128,
+    "selected_checkpoint": "text_model_best.pt",
+    "selected_epoch": 2,
+    "test_accuracy": 0.833,
+    "macro_f1": 0.8088,
+    "weighted_f1": 0.8325,
+    "suicidal_recall": 0.7577
+}

@@ -40,25 +40,39 @@ tab_benchmarks, tab_cv, tab_training, tab_limits = st.tabs([
 ])
 
 with tab_benchmarks:
-    st.markdown("### 1. Documented Classification Reports (Original Experiments)")
+    st.markdown("### 1. Documented Classification Reports")
 
     col_t1, col_t2 = st.columns(2)
 
     with col_t1:
         st.markdown("#### 📝 MentalBERT 7-Class Text Classification")
-        st.caption("Trained on 52,680 Kaggle sentiment records for 3 epochs.")
+        st.caption("Evaluated on Kaggle sentiment held-out test split (5,268 records).")
 
-        text_rep = [
-            {"Category": "Anxiety", "Precision": 0.90, "Recall": 0.86, "F1": 0.88, "Support": 384},
-            {"Category": "Bipolar", "Precision": 0.88, "Recall": 0.85, "F1": 0.87, "Support": 278},
-            {"Category": "Depression", "Precision": 0.78, "Recall": 0.81, "F1": 0.79, "Support": 1540},
-            {"Category": "Normal", "Precision": 0.95, "Recall": 0.97, "F1": 0.96, "Support": 1635},
-            {"Category": "Personality disorder", "Precision": 0.85, "Recall": 0.72, "F1": 0.78, "Support": 107},
-            {"Category": "Stress", "Precision": 0.79, "Recall": 0.80, "F1": 0.79, "Support": 259},
-            {"Category": "Suicidal", "Precision": 0.75, "Recall": 0.71, "F1": 0.73, "Support": 1065},
-        ]
-        st.table(pd.DataFrame(text_rep))
-        st.info("Overall Test Accuracy: **84.26%** | Macro F1: **82.90%** | Weighted F1: **84.21%**")
+        t_sub1, t_sub2 = st.tabs(["🚀 Operational Model (Reproduced)", "📜 Original Notebook Record"])
+
+        with t_sub1:
+            st.markdown("**Exported Checkpoint (`models/text/mentalbert_best_export`):**")
+            st.markdown("""
+            - **Held-Out Test Accuracy:** 83.30%
+            - **Macro F1-Score:** 80.88%
+            - **Weighted F1-Score:** 83.25%
+            - **Suicidal Class Recall:** **75.77%** (improved from original 71.00%)
+            """)
+            st.caption("Checkpoint selected at Epoch 2 via validation loss checkpointing (val loss: 0.4497).")
+
+        with t_sub2:
+            st.markdown("**Historical Notebook Benchmark (`notebooks/text_model.ipynb`):**")
+            text_rep = [
+                {"Category": "Anxiety", "Precision": 0.90, "Recall": 0.86, "F1": 0.88, "Support": 384},
+                {"Category": "Bipolar", "Precision": 0.88, "Recall": 0.85, "F1": 0.87, "Support": 278},
+                {"Category": "Depression", "Precision": 0.78, "Recall": 0.81, "F1": 0.79, "Support": 1540},
+                {"Category": "Normal", "Precision": 0.95, "Recall": 0.97, "F1": 0.96, "Support": 1635},
+                {"Category": "Personality disorder", "Precision": 0.85, "Recall": 0.72, "F1": 0.78, "Support": 107},
+                {"Category": "Stress", "Precision": 0.79, "Recall": 0.80, "F1": 0.79, "Support": 259},
+                {"Category": "Suicidal", "Precision": 0.75, "Recall": 0.71, "F1": 0.73, "Support": 1065},
+            ]
+            st.table(pd.DataFrame(text_rep))
+            st.info("Original Run Accuracy: **84.26%** | Macro F1: **82.90%** | Weighted F1: **84.21%**")
 
     with col_t2:
         st.markdown("#### 🎭 FER2013 7-Emotion Facial Affect Classification")

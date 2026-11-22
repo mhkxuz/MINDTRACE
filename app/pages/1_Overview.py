@@ -78,14 +78,14 @@ with col_a1:
         <div class="research-card" style="height:100%;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h4 style="color:#6366F1; margin:0;">Modality 1: Text</h4>
-                <span class="status-pill pill-green">Implemented</span>
+                <span class="status-pill pill-green">Operational</span>
             </div>
-            <div style="margin:0.8rem 0; font-size:1.2rem; font-weight:700; color:#F8FAFC;">MentalBERT</div>
+            <div style="margin:0.8rem 0; font-size:1.2rem; font-weight:700; color:#F8FAFC;">MentalBERT (Dual-Encoder)</div>
             <p style="color:#94A3B8; font-size:0.85rem; line-height:1.6;">
-                <strong>Encoder:</strong> <code>mental-bert-base-uncased</code><br>
-                <strong>Pretraining:</strong> 52,680 Kaggle sentiment posts<br>
-                <strong>Vector Output:</strong> 768-dimensional CLS embedding<br>
-                <strong>Task:</strong> Captures <em>WHAT</em> the person says.
+                <strong>Classifier:</strong> Fine-tuned 7-class model (<code>mentalbert_best_export</code>) with 83.30% held-out test accuracy.<br>
+                <strong>Fusion Encoder:</strong> Frozen base <code>mental-bert-base-uncased</code> for 768-d CLS extraction (matches <code>fusion_model.ipynb</code>).<br>
+                <strong>Pretraining:</strong> 52,680 Kaggle sentiment records.<br>
+                <strong>Task:</strong> Captures <em>WHAT</em> the person communicates.
             </p>
         </div>
         """,

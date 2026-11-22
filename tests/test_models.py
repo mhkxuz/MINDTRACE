@@ -11,12 +11,14 @@ from src.models.facial_model import (
 )
 from src.models.text_model import (
     MentalBERTService,
+    TEXT_CLASSES,
 )
 from src.models.fusion_model import (
     TextOnlyModel,
     BehavioralOnlyModel,
     FusionModelWeighted,
     FusionService,
+    DISTRESS_CLASSES,
 )
 
 
@@ -88,7 +90,7 @@ def test_missing_checkpoints_graceful_handling():
 def test_checkpoint_detection_and_status():
     """Verify that checkpoint detection accurately reports disk status."""
     text_svc = MentalBERTService()
-    assert text_svc.checkpoint_path == "models/text/text_model_final.pt"
+    assert text_svc.checkpoint_path in ["models/text/mentalbert_best_export", "models/text/text_model_final.pt"]
     if os.path.exists(text_svc.checkpoint_path):
         text_svc.load_classifier()
         assert text_svc.is_classifier_loaded is True
@@ -107,6 +109,78 @@ def test_checkpoint_detection_and_status():
     assert os.path.exists(fus_svc.checkpoint_path) is True
     assert fus_svc.is_model_loaded is True
     assert fus_svc.is_scaler_loaded is True
+
+
+def test_fine_tuned_mentalbert_service_offline_and_predictions():
+    """Verify offline loading, 7-class probability normalization, and input edge cases."""
+    text_svc = MentalBERTService()
+    loaded = text_svc.load_classifier()
+    assert loaded is True
+    assert text_svc.is_classifier_loaded is True
+    assert os.path.exists(os.path.join(text_svc.checkpoint_path, "model.safetensors"))
+
+    # 1. Normal text inference - check structure and probability axioms
+    sample_text = "I have been feeling really exhausted and stressed about my upcoming project deadlines."
+    res = text_svc.predict(sample_text)
+    assert res["success"] is True
+    assert "predicted_class" in res
+    assert res["predicted_class"] in TEXT_CLASSES
+    assert len(res["probabilities"]) == 7
+    # Probabilities sum to 1.0 within tolerance and are non-negative
+    prob_sum = sum(res["probabilities"].values())
+    assert abs(prob_sum - 1.0) < 1e-4
+    for k, v in res["probabilities"].items():
+        assert 0.0 <= v <= 1.0
+
+    # 2. Empty / whitespace string handling - robustly handled without crashing
+    empty_res = text_svc.predict("   ")
+    assert empty_res["success"] is True
+    assert len(empty_res["probabilities"]) == 7
+    assert abs(sum(empty_res["probabilities"].values()) - 1.0) < 1e-4
+
+    # 3. Short single-word input
+    short_res = text_svc.predict("hello")
+    assert short_res["success"] is True
+    assert abs(sum(short_res["probabilities"].values()) - 1.0) < 1e-4
+
+    # 4. Long text (exceeding 128 max tokens) - verify truncation works without crashing
+    long_text = "stress anxiety depression overwhelm " * 80
+    long_res = text_svc.predict(long_text)
+    assert long_res["success"] is True
+    assert abs(sum(long_res["probabilities"].values()) - 1.0) < 1e-4
+
+
+def test_frozen_base_encoder_and_fusion_pipeline():
+    """Verify base MentalBERT offline extraction and 776-d fusion pipeline integration."""
+    text_svc = MentalBERTService()
+    # Extract 768-d embedding using frozen base MentalBERT
+    emb = text_svc.extract_text_embedding("I am dealing with overwhelming anxiety and panic.")
+    assert emb is not None
+    assert isinstance(emb, np.ndarray)
+    assert emb.shape == (768,)
+    assert emb.dtype == np.float32
+    assert not np.isnan(emb).any()
+    assert not np.isinf(emb).any()
+
+    # Empty text fallback embedding
+    empty_emb = text_svc.extract_text_embedding("")
+    assert empty_emb is not None
+    assert empty_emb.shape == (768,)
+
+    # Feed into FusionService with 8 behavioral features
+    fus_svc = FusionService()
+    fus_svc.load_model()
+    fus_svc.load_scaler()
+    assert fus_svc.is_model_loaded is True
+
+    raw_behav = np.array([6.0, 0.5, 14.2, -0.15, 0.0, 0.0, 4.2, 0.0], dtype=np.float32)
+    fus_pred = fus_svc.predict(emb, raw_behav)
+    assert fus_pred["success"] is True
+    assert fus_pred["prediction"] in DISTRESS_CLASSES
+    assert "distress_probability" in fus_pred
+    assert 0.0 <= fus_pred["distress_probability"] <= 1.0
+    assert abs(fus_pred["probabilities"][DISTRESS_CLASSES[0]] + fus_pred["probabilities"][DISTRESS_CLASSES[1]] - 1.0) < 1e-4
+
 
 
 def test_fusion_feature_ordering_and_scaler():

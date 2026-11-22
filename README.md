@@ -78,7 +78,8 @@ multimodal-mental-health/
 │   ├── fusion/
 │   │   └── fusion_model.pt            # Model C FusionModelWeighted weights
 │   └── text/
-│       └── text_model_final.pt        # Fine-tuned 7-class MentalBERT weights
+│       ├── mentalbert_best_export/    # Fine-tuned 7-class MentalBERT Safetensors export
+│       └── text_model_final.pt        # Preserved legacy prototype checkpoint
 ├── notebooks/                         # Original Google Colab research notebooks
 │   ├── data_preparation+behavioral_features.ipynb
 │   ├── facial_emotion_label.ipynb
@@ -160,11 +161,12 @@ pytest
 The test suite validates:
 * Mathematical correctness of all 13 behavioral metrics and withdrawal detection.
 * Exact parameter counts for `FacialEmotionCNN` (1,274,951), `TextOnlyModel` (98,690), `BehavioralOnlyModel` (850), and `FusionModelWeighted` (25,970).
+* Decoupled dual-encoder architecture: local offline loading of fine-tuned MentalBERT classifier and frozen base encoder.
 * 776-dimensional vector concatenation for multimodal fusion.
 * Live two-branch binary distress fusion inference.
 * Safe and graceful handling of missing model checkpoints without crashing.
 
-For detailed audit information on model recovery and verification, see [docs/model_recovery_report.md](docs/model_recovery_report.md).
+For detailed audit information on model integration and architecture, see [docs/mentalbert_model_integration_report.md](docs/mentalbert_model_integration_report.md).
 
 ---
 
@@ -172,7 +174,8 @@ For detailed audit information on model recovery and verification, see [docs/mod
 
 | Modality / Experiment | Model Architecture | Dataset / Size | Accuracy | Macro F1 | Key Finding / Limitation |
 |---|---|---|---|---|---|
-| **Text Classification** | MentalBERT Uncased | Kaggle Sentiment (52,680) | **84.26%** | **82.90%** | Suicidal class recall lowest (71.0%), confused with Depression. |
+| **Text Classification (Reproduced)** | MentalBERT (`mentalbert_best_export`) | Kaggle Sentiment (52,680) | **83.30%** | **80.88%** | Suicidal recall: **75.77%** (improved from original 71.0%). |
+| **Text Classification (Notebook)** | MentalBERT Uncased | Kaggle Sentiment (52,680) | **84.26%** | **82.90%** | Historical notebook benchmark; Suicidal recall 71.0%. |
 | **Facial Affect** | 3-Block Custom CNN | FER2013 (35,887) | **58.79%** | **56.47%** | Posed static faces; affect $\ne$ psychiatric diagnosis. |
 | **Text-Only Baseline (A)** | 768-d MLP | ESConv (908 convs) | 55.4% | 0.649 | AUROC: 0.496. |
 | **Behavioral Baseline (B)**| 8-d MLP | ESConv (908 convs) | 44.8% | 0.583 | AUROC: 0.370. |

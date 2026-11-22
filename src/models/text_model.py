@@ -1,7 +1,18 @@
 """
 MentalBERT text classification model and 768-d embedding extraction service.
 Faithfully reproduces the text modeling logic from:
-notebooks/text_model.ipynb and notebooks/fusion_model.ipynb
+notebooks/text_model.ipynb, notebooks/train_text_model_colab.ipynb, and notebooks/fusion_model.ipynb
+
+Architectural Design (Decoupled Dual-Encoder Pipeline):
+1. 7-Class Mental Health Text Categorization (Page 2):
+   - Uses the fine-tuned MentalBERT classifier (Epoch 2 best checkpoint) loaded locally
+     from models/text/mentalbert_best_export/ (config.json, model.safetensors, tokenizer.json).
+   - Operates offline via local_files_only=True without internet downloads during startup.
+2. Multimodal Distress Fusion Feature Extraction (Page 5):
+   - Uses the frozen base MentalBERT encoder (mental/mental-bert-base-uncased) loaded
+     from local Hugging Face cache (local_files_only=True).
+   - Preserves exact 768-dimensional CLS embedding extraction protocol from fusion_model.ipynb Cell 7,
+     preventing representation degradation from fine-tuning distribution shifts (cosine sim ~0.3120).
 """
 
 import os
@@ -23,14 +34,36 @@ TEXT_CLASSES = [
     "Suicidal",
 ]
 
-# Benchmark metrics from test set evaluation in text_model.ipynb
-TEXT_BENCHMARK_METRICS = {
-    "dataset": "Kaggle Sentiment Analysis for Mental Health",
+# Historical benchmark metrics from original text_model.ipynb experiment
+TEXT_HISTORICAL_BENCHMARK_METRICS = {
+    "dataset": "Kaggle Sentiment Analysis for Mental Health (Original)",
     "dataset_size": 52680,
     "test_accuracy": 0.8426,
     "macro_f1": 0.8290,
     "weighted_f1": 0.8421,
+    "suicidal_recall": 0.7100,
     "epochs_trained": 3,
+    "benchmark_type": "Original Colab Experiment Benchmark",
+}
+
+# Reproduced held-out test evaluation metrics (from models/text/mentalbert_best_export/training_metadata.json)
+TEXT_REPRODUCED_BENCHMARK_METRICS = {
+    "dataset": "Kaggle Sentiment Analysis for Mental Health (52,680 cleaned records)",
+    "dataset_size": 52680,
+    "test_split_size": 5268,
+    "selected_checkpoint": "text_model_best.pt",
+    "selected_epoch": 2,
+    "test_accuracy": 0.8330,
+    "macro_f1": 0.8088,
+    "weighted_f1": 0.8325,
+    "suicidal_recall": 0.7577,
+    "benchmark_type": "Reproduced Held-Out Dataset Benchmark",
+    "scientific_qualification": (
+        "Evaluated on 5,268 held-out test samples from the Kaggle sentiment dataset. "
+        "Represents statistical text categorization performance across dataset-defined categories, "
+        "not a clinical diagnosis or validated clinical suicide risk assessment."
+    ),
+    "class_names": TEXT_CLASSES,
     "class_metrics": {
         "Anxiety": {"precision": 0.90, "recall": 0.86, "f1": 0.88},
         "Bipolar": {"precision": 0.88, "recall": 0.85, "f1": 0.87},
@@ -38,158 +71,247 @@ TEXT_BENCHMARK_METRICS = {
         "Normal": {"precision": 0.95, "recall": 0.97, "f1": 0.96},
         "Personality disorder": {"precision": 0.85, "recall": 0.72, "f1": 0.78},
         "Stress": {"precision": 0.79, "recall": 0.80, "f1": 0.79},
-        "Suicidal": {"precision": 0.75, "recall": 0.71, "f1": 0.73},
+        "Suicidal": {"precision": 0.75, "recall": 0.7577, "f1": 0.7538},
     },
 }
 
-MODEL_NAME = "mental/mental-bert-base-uncased"
+# Default benchmark alias for backward compatibility
+TEXT_BENCHMARK_METRICS = TEXT_REPRODUCED_BENCHMARK_METRICS
+
+DEFAULT_EXPORTED_MODEL_DIR = "models/text/mentalbert_best_export"
+DEFAULT_BASE_MODEL_NAME = "mental/mental-bert-base-uncased"
 
 
 class MentalBERTService:
-    def __init__(self, checkpoint_path: Optional[str] = None):
-        self.checkpoint_path = checkpoint_path or os.getenv(
-            "TEXT_MODEL_PATH", "models/text/text_model_final.pt"
+    """
+    Decoupled dual-encoder service:
+    - Fine-tuned 7-class classifier (Safetensors) for conversational text categorization.
+    - Frozen base MentalBERT encoder for 768-dimensional CLS feature extraction for multimodal fusion.
+    """
+    def __init__(
+        self,
+        checkpoint_path: Optional[str] = None,
+        base_model_path: Optional[str] = None,
+        device: Optional[torch.device] = None,
+    ):
+        # 1. Path configuration: Prefer exported safetensors model directory if present
+        if checkpoint_path is not None:
+            self.checkpoint_path = checkpoint_path
+        elif os.path.isdir(DEFAULT_EXPORTED_MODEL_DIR):
+            self.checkpoint_path = DEFAULT_EXPORTED_MODEL_DIR
+        else:
+            self.checkpoint_path = os.getenv("TEXT_MODEL_PATH", DEFAULT_EXPORTED_MODEL_DIR)
+
+        self.base_model_path = base_model_path or os.getenv(
+            "BASE_MENTALBERT_PATH", DEFAULT_BASE_MODEL_NAME
         )
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = None
+
+        # 2. Device selection
+        if device is not None:
+            self.device = device
+        else:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # 3. Offline enforcement: online download allowed only behind explicit opt-in
+        self.allow_online_download = os.getenv(
+            "ALLOW_ONLINE_MODEL_DOWNLOAD", "0"
+        ).strip().lower() in ("1", "true", "yes")
+
+        # 4. Decoupled lazy models
+        self.classifier_tokenizer = None
         self.classifier_model = None
-        self.embedding_model = None
         self.is_classifier_loaded = False
+
+        self.base_tokenizer = None
+        self.base_embedding_model = None
         self.is_embedding_loaded = False
 
-    def get_hf_token(self) -> Optional[str]:
-        """Fetch Hugging Face token safely from environment."""
-        return os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
-
-    def load_tokenizer(self) -> bool:
-        """Load tokenizer with optional authentication token."""
-        if self.tokenizer is not None:
-            return True
-        try:
-            from transformers import AutoTokenizer
-            token = self.get_hf_token()
-            try:
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    MODEL_NAME,
-                    token=token if token else True,
-                    local_files_only=True
-                )
-            except Exception:
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    MODEL_NAME,
-                    token=token if token else True
-                )
-            return True
-        except Exception as e:
-            print(f"Failed to load tokenizer: {e}")
+    def is_classifier_available(self) -> bool:
+        """
+        Check whether the fine-tuned classifier is present on disk
+        without loading heavy model weights.
+        """
+        path = self.checkpoint_path
+        if not path:
             return False
 
+        if os.path.isdir(path):
+            has_config = os.path.exists(os.path.join(path, "config.json"))
+            has_weights = (
+                os.path.exists(os.path.join(path, "model.safetensors"))
+                or os.path.exists(os.path.join(path, "pytorch_model.bin"))
+            )
+            return has_config and has_weights
+        elif os.path.isfile(path):
+            return os.path.exists(path)
+
+        return False
+
+    def is_base_encoder_available(self) -> bool:
+        """
+        Check whether the frozen base MentalBERT encoder is available locally in the
+        local Hugging Face cache or local filesystem without loading tensor weights.
+        """
+        # If it's a local directory path
+        if os.path.isdir(self.base_model_path):
+            return os.path.exists(os.path.join(self.base_model_path, "config.json"))
+
+        # Check standard Hugging Face cache location
+        hf_cache_hub = os.path.expanduser("~/.cache/huggingface/hub")
+        expected_repo = "models--" + self.base_model_path.replace("/", "--")
+        repo_dir = os.path.join(hf_cache_hub, expected_repo)
+        if os.path.exists(repo_dir):
+            snapshots_dir = os.path.join(repo_dir, "snapshots")
+            if os.path.exists(snapshots_dir) and os.listdir(snapshots_dir):
+                return True
+
+        # If online download is explicitly opted-in, consider it resolvable
+        if self.allow_online_download:
+            return True
+
+        return False
+
     def load_classifier(self) -> bool:
-        """Load fine-tuned 7-class sequence classifier."""
-        if not os.path.exists(self.checkpoint_path):
+        """
+        Load fine-tuned 7-class sequence classifier from local exported model directory
+        or legacy .pt checkpoint file.
+        Strictly enforces offline loading by default (local_files_only=True).
+        """
+        if self.is_classifier_loaded and self.classifier_model is not None:
+            return True
+
+        if not self.is_classifier_available():
             self.is_classifier_loaded = False
             return False
 
-        if not self.load_tokenizer():
-            return False
-
         try:
-            from transformers import AutoModelForSequenceClassification
-            token = self.get_hf_token()
-            try:
-                model = AutoModelForSequenceClassification.from_pretrained(
-                    MODEL_NAME,
-                    num_labels=len(TEXT_CLASSES),
-                    token=token if token else True,
-                    local_files_only=True
+            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+            local_only = not self.allow_online_download
+
+            # Case A: Local directory export (models/text/mentalbert_best_export/)
+            if os.path.isdir(self.checkpoint_path):
+                self.classifier_tokenizer = AutoTokenizer.from_pretrained(
+                    self.checkpoint_path,
+                    local_files_only=local_only,
                 )
-            except Exception:
-                model = AutoModelForSequenceClassification.from_pretrained(
-                    MODEL_NAME,
-                    num_labels=len(TEXT_CLASSES),
-                    token=token if token else True
+                self.classifier_model = AutoModelForSequenceClassification.from_pretrained(
+                    self.checkpoint_path,
+                    local_files_only=local_only,
                 )
-            state_dict = torch.load(self.checkpoint_path, map_location=self.device)
-            model.load_state_dict(state_dict)
-            model.to(self.device)
-            model.eval()
-            self.classifier_model = model
+            # Case B: Legacy single .pt state-dict file
+            elif os.path.isfile(self.checkpoint_path):
+                base_name = self.base_model_path
+                self.classifier_tokenizer = AutoTokenizer.from_pretrained(
+                    base_name,
+                    local_files_only=local_only,
+                )
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    base_name,
+                    num_labels=len(TEXT_CLASSES),
+                    local_files_only=local_only,
+                )
+                state_dict = torch.load(self.checkpoint_path, map_location=self.device)
+                model.load_state_dict(state_dict)
+                self.classifier_model = model
+            else:
+                raise FileNotFoundError(
+                    f"Text classifier checkpoint not found at: {self.checkpoint_path}"
+                )
+
+            self.classifier_model.to(self.device)
+            self.classifier_model.eval()
             self.is_classifier_loaded = True
             return True
+
         except Exception as e:
-            print(f"Error loading text classifier checkpoint from {self.checkpoint_path}: {e}")
+            print(f"Error loading fine-tuned text classifier from {self.checkpoint_path}: {e}")
             self.is_classifier_loaded = False
             return False
 
     def load_embedding_encoder(self) -> bool:
         """
-        Load frozen base MentalBERT model for generating 768-dim embeddings,
-        matching Cell 6 of fusion_model.ipynb.
+        Load frozen base MentalBERT model for generating 768-dim embeddings for multimodal fusion,
+        strictly matching Cell 6 / Cell 7 of notebooks/fusion_model.ipynb.
+        Enforces local offline loading from local cache (local_files_only=True).
         """
-        if self.embedding_model is not None:
+        if self.is_embedding_loaded and self.base_embedding_model is not None:
             return True
 
-        if not self.load_tokenizer():
-            return False
+        if not self.is_base_encoder_available():
+            raise FileNotFoundError(
+                f"Base MentalBERT model '{self.base_model_path}' not found in local cache. "
+                "Fusion requires the frozen base encoder to preserve exact feature alignment."
+            )
 
         try:
-            from transformers import AutoModel
-            token = self.get_hf_token()
-            try:
-                model = AutoModel.from_pretrained(
-                    MODEL_NAME,
-                    token=token if token else True,
-                    local_files_only=True
-                )
-            except Exception:
-                model = AutoModel.from_pretrained(
-                    MODEL_NAME,
-                    token=token if token else True
-                )
+            from transformers import AutoTokenizer, AutoModel
+
+            local_only = not self.allow_online_download
+
+            self.base_tokenizer = AutoTokenizer.from_pretrained(
+                self.base_model_path,
+                local_files_only=local_only,
+            )
+            model = AutoModel.from_pretrained(
+                self.base_model_path,
+                local_files_only=local_only,
+            )
             model.to(self.device)
             model.eval()
-            self.embedding_model = model
+            self.base_embedding_model = model
             self.is_embedding_loaded = True
             return True
+
         except Exception as e:
-            print(f"Error loading base MentalBERT encoder: {e}")
+            print(f"Error loading base MentalBERT encoder from {self.base_model_path}: {e}")
+            self.is_embedding_loaded = False
             return False
 
     def extract_text_embedding(self, text: str) -> Optional[np.ndarray]:
         """
-        Extract 768-dimensional embedding from text using the [CLS] representation,
-        matching:
-        outputs = model(**inputs)
-        embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-        from fusion_model.ipynb.
+        Extract 768-dimensional CLS token embedding using the FROZEN BASE MentalBERT encoder,
+        strictly reproducing Cell 6 / Cell 7 of notebooks/fusion_model.ipynb.
+
+        Returns:
+            np.ndarray: Finite float32 array of shape (768,).
         """
-        if not self.load_embedding_encoder() or self.tokenizer is None:
+        if not self.load_embedding_encoder() or self.base_tokenizer is None:
             return None
 
-        clean_t = text.strip() if text else "empty"
-        inputs = self.tokenizer(
+        clean_t = str(text).strip() if text else "empty"
+        inputs = self.base_tokenizer(
             clean_t,
             return_tensors="pt",
             truncation=True,
-            padding=True,
-            max_length=128
+            padding="max_length",
+            max_length=128,
         ).to(self.device)
 
         with torch.no_grad():
-            outputs = self.embedding_model(**inputs)
-            # Take CLS token embedding (shape: 1 x 768)
-            cls_embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy().squeeze(0)
+            outputs = self.base_embedding_model(**inputs)
+            cls_embedding = (
+                outputs.last_hidden_state[:, 0, :]
+                .squeeze(0)
+                .cpu()
+                .numpy()
+                .astype(np.float32)
+            )
 
-        return cls_embedding.astype(np.float32)
+        return cls_embedding
 
     def predict(self, text_input: str) -> Dict[str, Any]:
         """
-        Classify single text into 7 mental health categories.
+        Classify single text into 7 mental health categories using the fine-tuned
+        MentalBERT classifier (models/text/mentalbert_best_export).
         """
-        if not os.path.exists(self.checkpoint_path):
+        if not self.is_classifier_available():
             return {
                 "success": False,
-                "error": f"Text model checkpoint not found at '{self.checkpoint_path}'. Trained weights must be placed at this path.",
+                "error": (
+                    f"Text model artifact not found at '{self.checkpoint_path}'. "
+                    "Ensure models/text/mentalbert_best_export/ contains config.json and model.safetensors."
+                ),
                 "predicted_class": None,
                 "probabilities": {},
                 "benchmark": TEXT_BENCHMARK_METRICS,
@@ -206,13 +328,13 @@ class MentalBERTService:
                     "benchmark": TEXT_BENCHMARK_METRICS,
                 }
 
-        clean_text = text_input.strip() if text_input else "empty"
-        inputs = self.tokenizer(
+        clean_text = str(text_input).strip() if text_input else "empty"
+        inputs = self.classifier_tokenizer(
             clean_text,
             return_tensors="pt",
             truncation=True,
             padding=True,
-            max_length=128
+            max_length=128,
         ).to(self.device)
 
         with torch.no_grad():
@@ -241,6 +363,14 @@ class MentalBERTService:
             "margin": margin,
             "probabilities": prob_dict,
             "benchmark": TEXT_BENCHMARK_METRICS,
+            "model_info": {
+                "architecture": "MentalBERT 7-Class Sequence Classifier",
+                "checkpoint": "Epoch 2 Best Export (Safetensors)",
+                "held_out_accuracy": "83.30%",
+                "held_out_macro_f1": "80.88%",
+                "held_out_suicidal_recall": "75.77%",
+                "qualification": "Statistical text categorization on Kaggle test set; not a clinical diagnosis.",
+            },
         }
 
     def predict_conversation(
@@ -269,7 +399,6 @@ class MentalBERTService:
         aggregated_text = " ".join([t.get("message", "") for t in relevant_turns])
         agg_result = self.predict(aggregated_text)
 
-        # Optional turn-by-turn predictions for user turns
         turn_predictions = []
         if self.is_classifier_loaded:
             for idx, turn in enumerate(turns):

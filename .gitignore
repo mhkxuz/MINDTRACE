@@ -18,8 +18,12 @@ ENV/
 # Checkpoints & Weights (do not commit large binary weights to Git)
 models/**/*.pt
 models/**/*.bin
+models/**/*.safetensors
 artifacts/scalers/*.pkl
 artifacts/scalers/*.joblib
+
+# Large Datasets
+data/raw/
 
 # OS & IDE
 .DS_Store
